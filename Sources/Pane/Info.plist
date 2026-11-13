@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>nl.emieljanson.PhotosStorage.Settings</string>
+<key>CFBundleName</key><string>Photos Storage</string>
+<key>CFBundleDisplayName</key><string>Photos Storage</string>
+<key>CFBundleExecutable</key><string>PhotosStoragePane</string>
+<key>CFBundlePackageType</key><string>BNDL</string>
+<key>CFBundleVersion</key><string>2</string>
+<key>CFBundleShortVersionString</key><string>0.2.0</string>
+<key>LSMinimumSystemVersion</key><string>13.0</string>
+<key>NSPrincipalClass</key><string>PhotosStoragePane</string>
+<key>NSPrefPaneIconLabel</key><string>Photos Storage</string>
+<key>NSPrefPaneAllowsXAppleSystemPreferencesURLScheme</key><true/>
+<key>NSPrefPaneSearchParameters</key><string>Photos Storage local iCloud optimize</string>
+</dict></plist>
