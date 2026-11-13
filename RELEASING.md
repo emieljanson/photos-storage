@@ -9,13 +9,15 @@ Never export signing secrets into this repository.
    `Sources/Agent/Info.plist` and `Sources/Pane/Info.plist`.
 2. Update `RELEASE_NOTES.md`. Keep the supported macOS build explicit; a new
    OS build needs separate engine validation.
-3. Run `zsh tests/run.sh` and the signed updater integration test.
+3. Run `zsh tests/run.sh`.
 4. Set the signing identity, team, and a **new** build directory:
 
    ```sh
    export PHOTOS_STORAGE_SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)'
    export PHOTOS_STORAGE_TEAM_ID='TEAMID'
    export PHOTOS_STORAGE_BUILD_DIR="$HOME/Library/Caches/PhotosStorage/release-VERSION"
+   zsh build.sh
+   python3 tests/run-update-integration.py
    zsh release.sh submit
    ```
 

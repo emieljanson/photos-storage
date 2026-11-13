@@ -13,9 +13,14 @@ if [[ ! -f "$sparkle_archive" ]]; then
 fi
 actual_sha256="$(shasum -a 256 "$sparkle_archive" | cut -d ' ' -f 1)"
 if [[ "$actual_sha256" != "$sparkle_sha256" ]]; then
+  rm -f -- "$sparkle_archive"
   print -u2 'Sparkle download failed its integrity check.'
   return 1
 fi
-if [[ ! -d "$sparkle_dir/Sparkle.framework" ]]; then
-  tar -xf "$sparkle_archive" -C "$sparkle_dir"
+if [[ ! -f "$sparkle_dir/.complete" || ! -f "$sparkle_dir/Sparkle.framework/Versions/B/Sparkle" || ! -x "$sparkle_dir/bin/generate_appcast" || ! -x "$sparkle_dir/bin/sign_update" || ! -f "$sparkle_dir/LICENSE" ]]; then
+  if ! tar -xf "$sparkle_archive" -C "$sparkle_dir"; then
+    rm -f -- "$sparkle_dir/.complete"
+    return 1
+  fi
+  touch "$sparkle_dir/.complete"
 fi

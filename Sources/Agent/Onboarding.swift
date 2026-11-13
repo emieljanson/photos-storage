@@ -32,6 +32,8 @@ struct SetupView: View {
         if !model.started { return "Photos Storage" }
         if ready { return "Ready in System Settings" }
         if attention { return "Setup Needs Attention" }
+        if model.step == .library { return "Photos Library" }
+        if model.step == .preferences { return "Photos Settings" }
         return "Allow Access"
     }
 
@@ -60,46 +62,51 @@ struct SetupView: View {
 
     var body: some View {
         VStack(spacing: 24) {
-            VStack(spacing: 12) {
-                Image(systemName: ready ? "checkmark.circle.fill" : "photo.on.rectangle")
-                    .font(.system(size: 48, weight: .regular))
-                    .foregroundStyle(ready ? Color.green : Color.accentColor)
-                    .accessibilityHidden(true)
-                Text(title).font(.title2.bold())
-                Text(description)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            ScrollView {
+                VStack(spacing: 24) {
+                    VStack(spacing: 12) {
+                        Image(systemName: ready ? "checkmark.circle.fill" : (model.started && model.step == .preferences ? "gearshape" : "photo.on.rectangle"))
+                            .font(.system(size: 48, weight: .regular))
+                            .foregroundStyle(ready ? Color.green : Color.accentColor)
+                            .accessibilityHidden(true)
+                        Text(title).font(.title2.bold())
+                        Text(description)
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
-            if model.started && !ready && !attention {
-                VStack(alignment: .leading, spacing: 18) {
-                    permission("Photos Library", detail: "Measure the space used by your local library.", granted: model.state.libraryReady == true)
-                    permission("Photos Settings", detail: "Adjust how much Photos downloads in advance.", granted: model.state.prefetchReady == true)
+                    if model.started && !ready && !attention {
+                        VStack(alignment: .leading, spacing: 18) {
+                            permission("Photos Library", detail: "Measure the space used by your local library.", granted: model.state.libraryReady == true)
+                            permission("Photos Settings", detail: "Adjust how much Photos downloads in advance.", granted: model.state.prefetchReady == true)
+                        }
+                    } else {
+                        Label("System Settings › Photos Storage", systemImage: "gearshape")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let error = model.error {
+                        Text(error)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if !model.started {
+                        Toggle("Keep Photos Storage up to date", isOn: $model.automaticUpdates)
+                            .toggleStyle(.checkbox)
+                            .font(.system(size: 12))
+                            .frame(maxWidth: .infinity)
+                    }
+
                 }
-            } else {
-                Label("System Settings › Photos Storage", systemImage: "gearshape")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
             }
-
-            if let error = model.error {
-                Text(error)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if !model.started {
-                Toggle("Keep Photos Storage up to date", isOn: $model.automaticUpdates)
-                    .toggleStyle(.checkbox)
-                    .font(.system(size: 12))
-                    .frame(maxWidth: .infinity)
-            }
-
-            Spacer(minLength: 0)
+            .id(title)
 
             HStack {
                 if model.started && !ready {
@@ -141,8 +148,9 @@ struct SetupView: View {
 }
 
 @MainActor
-final class SetupWindowController: NSWindowController {
+final class SetupWindowController: NSWindowController, NSWindowDelegate {
     let model: SetupModel
+    var didClose: (() -> Void)?
 
     init(model: SetupModel) {
         self.model = model
@@ -155,9 +163,14 @@ final class SetupWindowController: NSWindowController {
         window.contentView = NSHostingView(rootView: SetupView(model: model))
         window.center()
         super.init(window: window)
+        window.delegate = self
     }
 
     required init?(coder: NSCoder) { nil }
+
+    func windowWillClose(_ notification: Notification) {
+        Task { @MainActor [weak self] in self?.didClose?() }
+    }
 
     func present() {
         showWindow(nil)

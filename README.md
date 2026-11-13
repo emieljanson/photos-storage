@@ -109,9 +109,9 @@ checks its SHA-256 digest. Sparkle's license is included inside the app.
 
 Local builds use ad-hoc signatures. Set `PHOTOS_STORAGE_SIGN_IDENTITY` to a
 Developer ID Application identity for both build and package scripts to sign
-the app, embedded pane, helper, and disk image with a secure timestamp. Submit
-the resulting disk image to Apple and staple its notarization ticket before
-public distribution. Running Sparkle with hardened runtime requires a real
+the app, embedded pane, helper, and local disk image with a secure timestamp.
+Public releases use the notarized app export and ZIP flow described below.
+Running Sparkle with hardened runtime requires a real
 Developer ID signature. See [RELEASING.md](RELEASING.md) for the verified
 Xcode-account release process. No notarization credentials are stored in this repo.
 
@@ -170,6 +170,12 @@ local update server. It verifies rejection of a tampered archive, a signed
 feed and payload, deferral while busy, automatic installation, and relaunch
 into the new signed executable. It needs a Developer ID signing identity and
 the release update key in Keychain; it never accesses a real Photos library.
+
+For visual checks, run `zsh preview.sh`. The native preview offers demo,
+worst-case, empty, permission, safety, small-volume, and stopped-agent states,
+plus light, dark, and high-contrast appearances. It reads disposable fixture
+snapshots and cannot start the agent or send it commands. Close the preview
+before rebuilding it.
 
 ## Remove
 

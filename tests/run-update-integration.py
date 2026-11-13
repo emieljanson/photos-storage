@@ -119,24 +119,31 @@ app.run()
     with tampered.open("ab") as file:
         file.write(b"modified after signing")
     rejected = subprocess.run([str(sdk / "bin/sign_update"), "--account", "photos-storage", "--verify", str(tampered), signature], capture_output=True)
-    assert rejected.returncode != 0, "An update changed after signing must be rejected"
+    if not (rejected.returncode != 0):
+        raise AssertionError('An update changed after signing must be rejected')
     print("PASS tampered update rejected by signature verification", flush=True)
     expected = hashlib.sha256((updated / "Contents/MacOS/Verification").read_bytes()).hexdigest()
     run("open", "-n", "-g", installed)
     deadline = time.monotonic() + 100
     while not checked.exists() and time.monotonic() < deadline:
         time.sleep(0.25)
-    assert checked.exists(), f"Updater did not reach installation; inspect {root}"
-    assert info(installed)["CFBundleVersion"] == "1", "Installation must wait while the storage check is busy"
-    assert result.read_text().splitlines() == ["1"], "The busy application must not restart"
+    if not (checked.exists()):
+        raise AssertionError(f'Updater did not reach installation; inspect {root}')
+    if not (info(installed)['CFBundleVersion'] == '1'):
+        raise AssertionError('Installation must wait while the storage check is busy')
+    if not (result.read_text().splitlines() == ['1']):
+        raise AssertionError('The busy application must not restart')
     print("PASS automatic update downloaded and verified; installation deferred while busy", flush=True)
     permit.touch()
     deadline = time.monotonic() + 60
     while (not result.exists() or "2" not in result.read_text().splitlines()) and time.monotonic() < deadline:
         time.sleep(0.25)
-    assert info(installed)["CFBundleVersion"] == "2", f"Update was not installed; inspect {root}"
-    assert result.read_text().splitlines() == ["1", "2"], "The installed update must actually relaunch"
-    assert hashlib.sha256((installed / "Contents/MacOS/Verification").read_bytes()).hexdigest() == expected
+    if not (info(installed)['CFBundleVersion'] == '2'):
+        raise AssertionError(f'Update was not installed; inspect {root}')
+    if not (result.read_text().splitlines() == ['1', '2']):
+        raise AssertionError('The installed update must actually relaunch')
+    if not (hashlib.sha256((installed / 'Contents/MacOS/Verification').read_bytes()).hexdigest() == expected):
+        raise AssertionError('Updated executable differs from the signed release')
     run("codesign", "--verify", "--deep", "--strict", installed)
     print("PASS signed feed and payload, automatic installation after idle, and relaunch into version 2", flush=True)
 finally:

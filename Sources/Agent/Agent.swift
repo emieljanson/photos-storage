@@ -101,6 +101,7 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
             let model = SetupModel(state: state) { [weak self] action in self?.handleSetup(action) }
             model.automaticUpdates = updates?.enabled ?? true
             setupController = SetupWindowController(model: model)
+            setupController?.didClose = { [weak self] in self?.updates?.resumeInstallationIfIdle() }
         }
         setupController?.model.state = state
         setupController?.present()
@@ -362,6 +363,7 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
         guard matchesFile(url, expectedURL: expectedPreferencesURL) else {
             defaults.set("wrong_file_or_unverifiable", forKey: "prefetchAccessStatus")
             accessProblem = "The selected settings file could not be verified."
+            setupController?.model.error = "Choose com.apple.photolibraryd.plist in the Photos settings folder, then click Allow Settings."
             status = accessProblem ?? "Access could not be confirmed."
             return
         }
@@ -379,6 +381,7 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
             defaults.set(failure.code, forKey: "prefetchAccessErrorCode")
             defaults.set("bookmark_error", forKey: "prefetchAccessStatus")
             accessProblem = "Access could not be saved. Automatic monitoring remains off."
+            setupController?.model.error = accessProblem
             status = accessProblem ?? "Access could not be confirmed."
             defaults.set(false, forKey: "automatic")
         }
@@ -422,7 +425,9 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
         panel.nameFieldStringValue = expected.lastPathComponent
         guard panel.runModal() == .OK, let url = panel.url else { return }
         guard matchesFile(url, expectedURL: expected) else {
-            state.message = "Choose \(expected.lastPathComponent). Other libraries are not used."
+            let message = "Choose \(expected.lastPathComponent), then click Allow Library."
+            setupController?.model.error = message
+            status = message
             return
         }
         do {
@@ -434,6 +439,7 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
             reconcile(rounds: 0, allowPurge: false, queueIfBusy: true)
         } catch {
             status = "Library access could not be saved. Monitoring remains off."
+            setupController?.model.error = status
             publish()
             defaults.set(false, forKey: "automatic")
         }

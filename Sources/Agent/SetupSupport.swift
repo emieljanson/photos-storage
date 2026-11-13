@@ -7,7 +7,7 @@ enum SetupStep: Equatable {
 func setupStep(for state: AgentState) -> SetupStep {
     if state.busy || state.lastCheckAt == nil { return .checking }
     if state.libraryReady == false { return .library }
-    if state.prefetchReady == false { return .preferences }
+    if state.libraryReady == true && state.prefetchReady == false { return .preferences }
     if state.libraryReady != true || state.prefetchReady != true || !state.cleanupAllowed { return .attention }
     return .ready
 }

@@ -6,13 +6,12 @@
 <key>CFBundleDisplayName</key><string>Photos Storage</string>
 <key>CFBundleExecutable</key><string>PhotosStoragePane</string>
 <key>CFBundlePackageType</key><string>BNDL</string>
-<key>CFBundleVersion</key><string>5</string>
+<key>CFBundleVersion</key><string>7</string>
 <key>CFBundleShortVersionString</key><string>0.3.0</string>
 <key>LSMinimumSystemVersion</key><string>27.2</string>
 <key>NSPrincipalClass</key><string>PhotosStoragePane</string>
 <key>NSPrefPaneIconLabel</key><string>Photos Storage</string>
 <key>NSPrefPaneIconFile</key><string>Photos.icns</string>
-<key>NSPrefPaneMinimumWidth</key><integer>0</integer>
 <key>NSPrefPaneAllowsXAppleSystemPreferencesURLScheme</key><true/>
 <key>NSPrefPaneSearchParameters</key><string>Photos Storage local iCloud optimize</string>
 </dict></plist>

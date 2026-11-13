@@ -9,6 +9,7 @@ assets="$output_dir/release"
 
 case "${1:-}" in
   submit)
+    [[ "$(uname -m)" == arm64 ]] || { print -u2 'Release builds require an Apple silicon Mac.'; exit 1; }
     : "${PHOTOS_STORAGE_TEAM_ID:?Set the Apple Developer team ID}"
     : "${PHOTOS_STORAGE_SIGN_IDENTITY:?Set a Developer ID Application identity}"
     [[ "$PHOTOS_STORAGE_SIGN_IDENTITY" == 'Developer ID Application:'* ]] || { print -u2 'Developer ID Application signing is required.'; exit 1; }
@@ -55,6 +56,7 @@ PY
   package)
     xcodebuild -exportNotarizedApp -archivePath "$archive" -exportPath "$export_dir"
     app="$export_dir/Photos Storage.app"
+    [[ "$(lipo -archs "$app/Contents/MacOS/PhotosStorage")" == arm64 ]] || { print -u2 'Release app must contain the arm64 architecture only.'; exit 1; }
     codesign --verify --deep --strict "$app"
     xcrun stapler validate "$app"
     spctl --assess --type execute --verbose=2 "$app"

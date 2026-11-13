@@ -21,6 +21,8 @@ expect(setupStep(for: state) == .checking, "Never request another permission dur
 state.busy = false
 state.libraryReady = nil
 expect(setupStep(for: state) == .attention, "Unknown access must never be treated as granted")
+state.prefetchReady = false
+expect(setupStep(for: state) == .attention, "Unknown library access must not skip ahead to the settings permission")
 
 expect(launchDestination(arguments: [], setupCompleted: false) == .setup, "First interactive launch needs setup")
 expect(launchDestination(arguments: [], setupCompleted: true) == .settings, "Later launches open Settings")
