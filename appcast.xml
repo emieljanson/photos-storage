@@ -5,8 +5,8 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <title>Photos Storage</title>
         <item>
             <title>0.3.0</title>
-            <pubDate>Fri, 13 Nov 2026 21:23:34 +0100</pubDate>
-            <sparkle:version>5</sparkle:version>
+            <pubDate>Fri, 13 Nov 2026 21:54:02 +0100</pubDate>
+            <sparkle:version>7</sparkle:version>
             <sparkle:shortVersionString>0.3.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>27.2</sparkle:minimumSystemVersion>
             <description sparkle:format="markdown"><![CDATA[# Photos Storage 0.3.0
@@ -22,7 +22,8 @@ An experimental preview for Apple silicon Macs running **macOS 27.2, build
 
 The app is signed with Developer ID and notarized by Apple. Unzip the
 download, move **Photos Storage.app** to **Applications**, then open it.
-Setup takes you directly to **System Settings → Photos Storage**.
+After permissions are granted, choose **Open System Settings** to reach
+**Photos Storage** directly.
 
 The storage target is approximate. macOS decides which cached resources it
 can release. iCloud Photos and Optimize Mac Storage must be enabled; unknown
@@ -32,10 +33,10 @@ Known macOS host limitations: this third-party pane uses a wider Settings
 window than Apple's own panes. Navigating away and back can leave it blank;
 open Photos Storage again to reload it.
 ]]></description>
-            <enclosure url="https://github.com/emieljanson/photos-storage/releases/download/v0.3.0/Photos-Storage-0.3.0-arm64.zip" length="1500205" type="application/octet-stream" sparkle:edSignature="Tw7kv76TU1/0v3/D8r190t+A+hzfm+r0uIIsJaFNMnAGWtK5xL5HsXcNzHwqw0SyiPyUpAy9zJKHmLmOP52RCg=="></enclosure>
+            <enclosure url="https://github.com/emieljanson/photos-storage/releases/download/v0.3.0/Photos-Storage-0.3.0-arm64.zip" length="1511852" type="application/octet-stream" sparkle:edSignature="ULlsiBBEcIeOp9PlS+mne6y0uPsGujknOPTr7smyISTp87rlvlcG8z8M4RSFDaxuJYnoYZc2e12MQl+OEAt9CQ=="></enclosure>
         </item>
     </channel>
 </rss><!-- sparkle-signatures:
-edSignature: 2KhtqLv78j/TdKA+FRshrO/C8lcBZinqsJw1z89dXYcWS0CpKGAwL2UXgQ9QbNQzO2ZqnOJQGRG0/NYb9I7OAA==
-length: 2227
+edSignature: oJdl+fz+FFpKQVXiyRy9ECLNPW5hxaX2h/zx88F5chFxREIZM6PGSq+R/3XeqWejgM5JJBLlfCgt4rCDQyk/DA==
+length: 2260
 -->
