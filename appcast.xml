@@ -1,0 +1,41 @@
+<?xml version="1.0" standalone="yes"?><!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
+--><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Photos Storage</title>
+        <item>
+            <title>0.3.0</title>
+            <pubDate>Fri, 13 Nov 2026 21:23:34 +0100</pubDate>
+            <sparkle:version>5</sparkle:version>
+            <sparkle:shortVersionString>0.3.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>27.2</sparkle:minimumSystemVersion>
+            <description sparkle:format="markdown"><![CDATA[# Photos Storage 0.3.0
+
+An experimental preview for Apple silicon Macs running **macOS 27.2, build
+26B123**. Cleanup is disabled on other builds.
+
+- Choose a local Photos storage target in System Settings.
+- See local Photos usage, with targets starting at 20 GB.
+- Follow guided setup for the two required permissions.
+- Keep monitoring active when System Settings is closed.
+- Receive signed automatic updates, or check manually under **Options…**.
+
+The app is signed with Developer ID and notarized by Apple. Unzip the
+download, move **Photos Storage.app** to **Applications**, then open it.
+Setup takes you directly to **System Settings → Photos Storage**.
+
+The storage target is approximate. macOS decides which cached resources it
+can release. iCloud Photos and Optimize Mac Storage must be enabled; unknown
+settings stop cleanup. The app never calls a Photos asset-deletion API.
+
+Known macOS host limitations: this third-party pane uses a wider Settings
+window than Apple's own panes. Navigating away and back can leave it blank;
+open Photos Storage again to reload it.
+]]></description>
+            <enclosure url="https://github.com/emieljanson/photos-storage/releases/download/v0.3.0/Photos-Storage-0.3.0-arm64.zip" length="1500205" type="application/octet-stream" sparkle:edSignature="Tw7kv76TU1/0v3/D8r190t+A+hzfm+r0uIIsJaFNMnAGWtK5xL5HsXcNzHwqw0SyiPyUpAy9zJKHmLmOP52RCg=="></enclosure>
+        </item>
+    </channel>
+</rss><!-- sparkle-signatures:
+edSignature: 2KhtqLv78j/TdKA+FRshrO/C8lcBZinqsJw1z89dXYcWS0CpKGAwL2UXgQ9QbNQzO2ZqnOJQGRG0/NYb9I7OAA==
+length: 2227
+-->

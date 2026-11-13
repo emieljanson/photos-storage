@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 
 enum ControlAction: String, Codable, Sendable {
-    case setLimit, setAutomatic, setLogin, refresh, grantLibrary, grantPrefetch, openPhotos
+    case setLimit, setAutomatic, setLogin, refresh, grantLibrary, grantPrefetch, openPhotos, showSetup, checkForUpdates, setUpdates
 }
 
 struct ControlRequest: Codable, Sendable {
@@ -16,8 +16,8 @@ struct ControlRequest: Codable, Sendable {
     func isValid(now: TimeInterval) -> Bool {
         guard version == 1, sentAt.isFinite, sentAt <= now + 60, sentAt >= now - 300 else { return false }
         switch action {
-        case .setLimit: return value.map { $0.isFinite && $0 >= 0 && $0 <= 100_000 } == true && enabled == nil
-        case .setAutomatic, .setLogin: return enabled != nil && value == nil
+        case .setLimit: return value.map { $0.isFinite && $0 >= 20 && $0 <= 100_000 } == true && enabled == nil
+        case .setAutomatic, .setLogin, .setUpdates: return enabled != nil && value == nil
         default: return value == nil && enabled == nil
         }
     }
@@ -35,6 +35,8 @@ struct AgentState: Codable, Sendable {
     var automatic = false
     var loginEnabled = false
     var loginNeedsApproval = false
+    var automaticUpdates: Bool?
+    var canCheckForUpdates: Bool?
     var libraryReady: Bool?
     var prefetchReady: Bool?
     var cleanupAllowed = false

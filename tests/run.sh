@@ -17,3 +17,8 @@ xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \
 xcrun swiftc -swift-version 6 -warnings-as-errors \
   "$source_dir/../Sources/Shared/ControlProtocol.swift" "$build_dir/main.swift" -o "$build_dir/ControlTests"
 "$build_dir/ControlTests" "$build_dir/wire.json"
+cp "$source_dir/SetupTests.swift" "$build_dir/main.swift"
+xcrun swiftc -swift-version 6 -warnings-as-errors \
+  "$source_dir/../Sources/Shared/ControlProtocol.swift" \
+  "$source_dir/../Sources/Agent/SetupSupport.swift" "$build_dir/main.swift" -o "$build_dir/SetupTests"
+"$build_dir/SetupTests"

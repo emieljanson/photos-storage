@@ -6,9 +6,17 @@
 <key>CFBundleDisplayName</key><string>Photos Storage</string>
 <key>CFBundleExecutable</key><string>PhotosStorage</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.2.0</string>
-<key>CFBundleVersion</key><string>2</string>
-<key>LSMinimumSystemVersion</key><string>13.0</string>
+<key>CFBundleShortVersionString</key><string>0.3.0</string>
+<key>CFBundleVersion</key><string>5</string>
+<key>LSMinimumSystemVersion</key><string>27.2</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
+<key>SUFeedURL</key><string>https://raw.githubusercontent.com/emieljanson/photos-storage/main/appcast.xml</string>
+<key>SUPublicEDKey</key><string>efeeOqvv19v7sFqLdk3g1zi5p0DcWx7i6DVoXiUKZEU=</string>
+<key>SUEnableAutomaticChecks</key><true/>
+<key>SUAutomaticallyUpdate</key><true/>
+<key>SUScheduledCheckInterval</key><integer>86400</integer>
+<key>SUEnableSystemProfiling</key><false/>
+<key>SUVerifyUpdateBeforeExtraction</key><true/>
+<key>SURequireSignedFeed</key><true/>
 </dict></plist>

@@ -1,4 +1,5 @@
 import AppKit
+import CoreServices
 import ServiceManagement
 import UniformTypeIdentifiers
 
@@ -23,6 +24,9 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
     private var libraryScopeStarted = false
     private var accessProblem: String?
     private var latestReply: CacheReply?
+    private var setupController: SetupWindowController?
+    private var openingSettings = false
+    private var updates: AppUpdates?
     private var status: String {
         get { state.message }
         set { state.message = newValue; publish() }
@@ -45,9 +49,23 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
             return
         }
         defaults.register(defaults: ["limitGB": 30.0, "automatic": false, "nativeLastReserveGiB": 13])
-        defaults.set(limitGB.isFinite ? min(100_000, max(0, limitGB)) : 30, forKey: "limitGB")
+        defaults.set(limitGB.isFinite ? min(100_000, max(20, limitGB)) : 30, forKey: "limitGB")
         restorePrefetchAccess()
         restoreLibraryAccess()
+        updates = AppUpdates(isIdle: { [weak self] in
+            guard let self else { return false }
+            return !self.busy && self.pendingRequest == nil && !self.openingSettings && NSApp.modalWindow == nil &&
+                self.setupController?.window?.isVisible != true
+        }, willRelaunch: { [weak self] in self?.defaults.set(true, forKey: "updateRelaunch") },
+           stateDidChange: { [weak self] in self?.publish() })
+        if defaults.bool(forKey: "setupCompleted") {
+            updates?.start()
+            if NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.systempreferences").isEmpty {
+                try? prepareSettingsPane()
+            }
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(settingsDidQuit(_:)),
+            name: NSWorkspace.didTerminateApplicationNotification, object: nil)
         DistributedNotificationCenter.default().addObserver(self, selector: #selector(receiveCommands(_:)),
             name: ControlInbox.commandNotification, object: nil)
         timer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
@@ -58,9 +76,127 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
         publish()
         receiveCommands(nil)
         reconcile(rounds: 1, allowPurge: automatic)
+        let event = NSAppleEventManager.shared().currentAppleEvent
+        let loginItem = event?.eventID == kAEOpenApplication &&
+            event?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
+        let updateRelaunch = defaults.bool(forKey: "updateRelaunch")
+        defaults.removeObject(forKey: "updateRelaunch")
+        switch launchDestination(arguments: CommandLine.arguments, setupCompleted: defaults.bool(forKey: "setupCompleted"), loginItem: loginItem || updateRelaunch) {
+        case .background: break
+        case .setup: showSetup()
+        case .settings: openSettings()
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if defaults.bool(forKey: "setupCompleted") { openSettings() }
+        else { showSetup() }
+        return false
+    }
+
+    private func showSetup() {
+        if setupController == nil {
+            let model = SetupModel(state: state) { [weak self] action in self?.handleSetup(action) }
+            model.automaticUpdates = updates?.enabled ?? true
+            setupController = SetupWindowController(model: model)
+        }
+        setupController?.model.state = state
+        setupController?.present()
+    }
+
+    @objc private func settingsDidQuit(_ notification: Notification) {
+        guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+              app.bundleIdentifier == "com.apple.systempreferences", defaults.bool(forKey: "setupCompleted") else { return }
+        try? prepareSettingsPane()
+    }
+
+    private func prepareSettingsPane() throws {
+        guard let source = Bundle.main.builtInPlugInsURL?.appendingPathComponent("PhotosStorage.prefPane") else {
+            throw PaneInstallationError.invalidPane
+        }
+        if FileManager.default.contentsEqual(atPath: source.path, andPath: PaneInstallation.destination.path) { return }
+        if !NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.systempreferences").isEmpty {
+            throw NSError(domain: "PhotosStorage.Setup", code: 1, userInfo: [NSLocalizedDescriptionKey:
+                "Quit System Settings, then try again to add Photos Storage."])
+        }
+        try PaneInstallation.install(from: source)
+    }
+
+    private func handleSetup(_ action: SetupAction) {
+        guard let model = setupController?.model else { return }
+        model.error = nil
+        switch action {
+        case .dismiss: setupController?.close()
+        case .start:
+            let path = Bundle.main.bundleURL.path
+            guard !path.hasPrefix("/Volumes/"), !path.contains("/AppTranslocation/") else {
+                model.error = "Move Photos Storage to Applications, then open it again."
+                return
+            }
+            do {
+                try prepareSettingsPane()
+                updates?.setEnabled(model.automaticUpdates)
+                model.started = true
+                reconcile(rounds: 0, allowPurge: false)
+            } catch { model.error = error.localizedDescription }
+        case .openPhotos:
+            if let libraryPath { NSWorkspace.shared.open(URL(fileURLWithPath: libraryPath)) }
+        case .primary:
+            switch model.step {
+            case .checking: break
+            case .library: grantLibraryAccess()
+            case .preferences: grantPrefetchAccess()
+            case .attention: reconcile(rounds: 0, allowPurge: false)
+            case .ready:
+                openSettings()
+            }
+        }
+    }
+
+    private func openSettings() {
+        guard !openingSettings else { return }
+        openingSettings = true
+        setupController?.model.openingSettings = true
+        Task { [weak self] in
+            guard let self else { return }
+            defer {
+                self.openingSettings = false
+                self.setupController?.model.openingSettings = false
+            }
+            let settings = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.systempreferences").first
+            if let settings, !settings.isTerminated {
+                guard settings.terminate() else {
+                    self.showSettingsError("Close System Settings, then try again.")
+                    return
+                }
+                for _ in 0..<50 {
+                    if settings.isTerminated { break }
+                    try? await Task.sleep(for: .milliseconds(100))
+                }
+                guard settings.isTerminated else {
+                    self.showSettingsError("Close System Settings, then try again.")
+                    return
+                }
+            }
+            do { try self.prepareSettingsPane() }
+            catch {
+                self.showSettingsError(error.localizedDescription)
+                return
+            }
+            if NSWorkspace.shared.open(PaneInstallation.destination) {
+                self.defaults.set(true, forKey: "setupCompleted")
+                self.updates?.start()
+                self.setupController?.close()
+            } else { self.showSettingsError("System Settings could not be opened. Try again.") }
+        }
+    }
+
+    private func showSettingsError(_ message: String) {
+        showSetup()
+        setupController?.model.error = message
+    }
 
     private func publish() {
         state.updatedAt = Date().timeIntervalSince1970
@@ -69,6 +205,9 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
         state.busy = busy
         state.loginEnabled = SMAppService.mainApp.status == .enabled
         state.loginNeedsApproval = SMAppService.mainApp.status == .requiresApproval
+        state.automaticUpdates = updates?.enabled
+        state.canCheckForUpdates = updates?.canCheck
+        setupController?.model.state = state
         do {
             try inbox.publish(state)
             DistributedNotificationCenter.default().postNotificationName(ControlInbox.stateNotification,
@@ -76,6 +215,7 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
         } catch {
             NSLog("Unable to publish Photos Storage state: %@", String(describing: error))
         }
+        updates?.resumeInstallationIfIdle()
     }
 
     @objc private func receiveCommands(_ notification: Notification?) {
@@ -95,7 +235,7 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
                 return
             }
             let capacity = Double(reply.quotaBytes) / 1_000_000_000
-            let selected = value >= capacity - 0.5 ? capacity : min(capacity, value.rounded())
+            let selected = max(20, value >= capacity - 0.5 ? capacity : min(capacity, value.rounded()))
             defaults.set(selected, forKey: "limitGB")
             revision += 1
             accessProblem = nil
@@ -120,6 +260,10 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
             grantPrefetchAccess()
         case .openPhotos:
             if let libraryPath { NSWorkspace.shared.open(URL(fileURLWithPath: libraryPath)) }
+        case .showSetup: showSetup()
+        case .checkForUpdates: updates?.check()
+        case .setUpdates:
+            if let enabled = command.enabled { updates?.setEnabled(enabled) }
         }
     }
 
@@ -158,7 +302,7 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
         state.totalBytes = reply.quotaBytes
         state.eligibleBytes = reply.eligibleBytes
         if reply.quotaBytes > 0, limitGB > Double(reply.quotaBytes) / 1_000_000_000 {
-            defaults.set(Double(reply.quotaBytes) / 1_000_000_000, forKey: "limitGB")
+            defaults.set(max(20, Double(reply.quotaBytes) / 1_000_000_000), forKey: "limitGB")
             revision += 1
         }
         publish()
@@ -205,14 +349,14 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
     @objc private func grantPrefetchAccess() {
         let panel = NSOpenPanel()
         NSApp.activate(ignoringOtherApps: true)
-        panel.title = "Allow Photos prefetch control"
-        panel.message = "Select com.apple.photolibraryd.plist. Photos Storage changes only the prefetch budget."
-        panel.prompt = "Allow access"
+        panel.title = "Allow Photos Settings"
+        panel.message = "The Photos settings file is selected. Click Allow Settings to continue."
+        panel.prompt = "Allow Settings"
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         panel.allowedContentTypes = [.propertyList]
-        panel.directoryURL = expectedPreferencesURL.deletingLastPathComponent()
+        panel.directoryURL = expectedPreferencesURL
         panel.nameFieldStringValue = expectedPreferencesURL.lastPathComponent
         guard panel.runModal() == .OK, let url = panel.url else { return }
         guard matchesFile(url, expectedURL: expectedPreferencesURL) else {
@@ -267,14 +411,14 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
         let expected = URL(fileURLWithPath: libraryPath)
         let panel = NSOpenPanel()
         NSApp.activate(ignoringOtherApps: true)
-        panel.title = "Allow Photos storage measurement"
-        panel.message = "Select \(expected.lastPathComponent). Photos Storage measures storage and does not delete photo files."
-        panel.prompt = "Allow access"
+        panel.title = "Allow Photos Library"
+        panel.message = "Your Photos library is selected. Click Allow Library to continue."
+        panel.prompt = "Allow Library"
         panel.canChooseFiles = true
         panel.canChooseDirectories = true
         panel.treatsFilePackagesAsDirectories = false
         panel.allowsMultipleSelection = false
-        panel.directoryURL = expected.deletingLastPathComponent()
+        panel.directoryURL = expected
         panel.nameFieldStringValue = expected.lastPathComponent
         guard panel.runModal() == .OK, let url = panel.url else { return }
         guard matchesFile(url, expectedURL: expected) else {
