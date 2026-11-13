@@ -7,83 +7,46 @@
 static NSString *const commandNotification = @"nl.emieljanson.FotoBudget.command";
 static NSString *const agentIdentifier = @"nl.emieljanson.FotoBudget";
 
-@interface StorageSliderCell : NSSliderCell
-@property double photosFraction;
-@property double diskFraction;
+@interface StorageOptionsPanel : NSPanel
 @end
-
-@implementation StorageSliderCell
-- (void)drawBarInside:(NSRect)rect flipped:(BOOL)flipped {
-    (void)flipped;
-    CGFloat inset = self.knobThickness / 2;
-    NSRect track = NSMakeRect(rect.origin.x + inset, NSMidY(rect) - 3, rect.size.width - 2 * inset, 6);
-    if (track.size.width <= 0) return;
-    CGFloat opacity = self.enabled ? 1 : 0.45;
-    [NSGraphicsContext saveGraphicsState];
-    [[NSBezierPath bezierPathWithRoundedRect:track xRadius:3 yRadius:3] addClip];
-    [[NSColor.separatorColor colorWithAlphaComponent:0.15 * opacity] setFill];
-    NSRectFill(track);
-    [[NSColor.labelColor colorWithAlphaComponent:0.13 * opacity] setFill];
-    NSRect fill = track;
-    fill.size.width *= fmin(1, fmax(0, self.diskFraction));
-    NSRectFill(fill);
-    [[NSColor.controlAccentColor colorWithAlphaComponent:opacity] setFill];
-    fill.size.width = track.size.width * fmin(1, fmax(0, self.photosFraction));
-    NSRectFill(fill);
-    [NSGraphicsContext restoreGraphicsState];
+@implementation StorageOptionsPanel
+- (void)cancelOperation:(id)sender {
+    (void)sender;
+    [self.sheetParent endSheet:self];
+    [self orderOut:nil];
 }
 @end
 
-@interface StorageSlider : NSSlider
-@property BOOL trackingBudget;
-@end
-
-@implementation StorageSlider
-- (void)mouseDown:(NSEvent *)event {
-    if (!self.enabled) return;
-    self.trackingBudget = YES;
-    [super mouseDown:event];
-    self.trackingBudget = NO;
-    [self sendAction:self.action to:self.target];
-}
-- (void)keyDown:(NSEvent *)event {
-    if (!self.enabled || (event.modifierFlags & (NSEventModifierFlagCommand | NSEventModifierFlagControl))) {
-        [super keyDown:event];
-        return;
-    }
-    double step = event.modifierFlags & NSEventModifierFlagOption ? 10 : 1;
-    switch (event.keyCode) {
-        case 123: case 125: self.doubleValue = fmax(self.minValue, self.doubleValue - step); break;
-        case 124: case 126: self.doubleValue = fmin(self.maxValue, self.doubleValue + step); break;
-        case 115: self.doubleValue = self.minValue; break;
-        case 119: self.doubleValue = self.maxValue; break;
-        default: [super keyDown:event]; return;
-    }
-    [self sendAction:self.action to:self.target];
-}
-@end
-
-@interface PhotosStoragePane : NSPreferencePane
-@property(nonatomic, strong) StorageSlider *slider;
+@interface PhotosStoragePane : NSPreferencePane <NSMenuDelegate>
+@property(nonatomic, strong) NSPopUpButton *targetPicker;
 @property(nonatomic, strong) NSTextField *photos;
-@property(nonatomic, strong) NSTextField *target;
-@property(nonatomic, strong) NSTextField *capacity;
-@property(nonatomic, strong) NSTextField *disk;
+@property(nonatomic, strong) NSTextField *around;
 @property(nonatomic, strong) NSTextField *status;
+@property(nonatomic, strong) NSTextField *details;
 @property(nonatomic, strong) NSTextField *checked;
 @property(nonatomic, strong) NSTextField *loginMessage;
 @property(nonatomic, strong) NSSwitch *automatic;
 @property(nonatomic, strong) NSSwitch *login;
+@property(nonatomic, strong) NSSwitch *updates;
+@property(nonatomic, strong) NSButton *checkUpdates;
 @property(nonatomic, strong) NSButton *access;
+@property(nonatomic, strong) NSButton *recovery;
 @property(nonatomic, strong) NSButton *refresh;
+@property(nonatomic, strong) NSPanel *optionsPanel;
+@property(nonatomic, strong) NSPanel *customPanel;
+@property(nonatomic, strong) NSTextField *customInput;
+@property(nonatomic, strong) NSTextField *customError;
 @property(nonatomic, strong) NSTimer *poll;
 @property(nonatomic, strong) NSDictionary *snapshot;
 @property(nonatomic, copy) NSString *pendingLimitID;
 @property NSTimeInterval pendingLimitAt;
 @property double pendingLimit;
+@property BOOL targetMenuTracking;
+@property(nonatomic, copy) NSString *agentStartupProblem;
 @end
 
 @implementation PhotosStoragePane
+
 
 - (NSURL *)controlRoot {
     return [NSURL fileURLWithPath:[NSHomeDirectory() stringByAppendingPathComponent:@"Library/Application Support/FotoBudget/control"] isDirectory:YES];
@@ -96,127 +59,295 @@ static NSString *const agentIdentifier = @"nl.emieljanson.FotoBudget";
     return label;
 }
 
-- (NSStackView *)row:(NSArray<NSView *> *)views {
-    NSStackView *row = [NSStackView stackViewWithViews:views];
-    row.orientation = NSUserInterfaceLayoutOrientationHorizontal;
-    row.alignment = NSLayoutAttributeCenterY;
-    row.spacing = 12;
-    return row;
-}
-
 - (NSView *)spacer {
     NSView *spacer = [[NSView alloc] initWithFrame:NSZeroRect];
     [spacer setContentHuggingPriority:NSLayoutPriorityDefaultLow forOrientation:NSLayoutConstraintOrientationHorizontal];
     return spacer;
 }
 
-- (NSBox *)group:(NSArray<NSView *> *)views {
+- (NSStackView *)row:(NSArray<NSView *> *)views {
+    NSStackView *row = [NSStackView stackViewWithViews:views];
+    row.orientation = NSUserInterfaceLayoutOrientationHorizontal;
+    row.alignment = NSLayoutAttributeCenterY;
+    row.spacing = 10;
+    return row;
+}
+
+- (NSStackView *)setting:(NSString *)title control:(NSView *)control {
+    NSStackView *row = [self row:@[[self label:title secondary:NO], [self spacer], control]];
+    [row.heightAnchor constraintGreaterThanOrEqualToConstant:36].active = YES;
+    return row;
+}
+
+- (NSSwitch *)miniSwitch:(NSString *)title action:(SEL)action {
+    NSSwitch *control = [[NSSwitch alloc] initWithFrame:NSMakeRect(0, 0, 36, 16)];
+    control.controlSize = NSControlSizeMini;
+    control.target = self;
+    control.action = action;
+    control.accessibilityLabel = title;
+    [control.widthAnchor constraintEqualToConstant:36].active = YES;
+    [control.heightAnchor constraintEqualToConstant:16].active = YES;
+    return control;
+}
+
+- (NSBox *)group:(NSArray<NSView *> *)rows {
+    NSMutableArray<NSView *> *views = [NSMutableArray array];
+    for (NSView *row in rows) {
+        if (views.count) {
+            NSBox *separator = [[NSBox alloc] initWithFrame:NSZeroRect];
+            separator.boxType = NSBoxSeparator;
+            [views addObject:separator];
+        }
+        [views addObject:row];
+    }
     NSStackView *stack = [NSStackView stackViewWithViews:views];
     stack.orientation = NSUserInterfaceLayoutOrientationVertical;
     stack.alignment = NSLayoutAttributeLeading;
-    stack.spacing = 16;
+    stack.spacing = 0;
     stack.translatesAutoresizingMaskIntoConstraints = NO;
     NSBox *box = [[NSBox alloc] initWithFrame:NSZeroRect];
     box.boxType = NSBoxCustom;
     box.borderWidth = 0;
     box.cornerRadius = 10;
-    box.fillColor = NSColor.controlBackgroundColor;
+    box.contentViewMargins = NSZeroSize;
+    box.fillColor = NSColor.underPageBackgroundColor;
     [box.contentView addSubview:stack];
     [NSLayoutConstraint activateConstraints:@[
-        [stack.leadingAnchor constraintEqualToAnchor:box.contentView.leadingAnchor constant:16],
-        [stack.trailingAnchor constraintEqualToAnchor:box.contentView.trailingAnchor constant:-16],
-        [stack.topAnchor constraintEqualToAnchor:box.contentView.topAnchor constant:16],
-        [stack.bottomAnchor constraintEqualToAnchor:box.contentView.bottomAnchor constant:-16]
+        [stack.leadingAnchor constraintEqualToAnchor:box.contentView.leadingAnchor constant:10],
+        [stack.trailingAnchor constraintEqualToAnchor:box.contentView.trailingAnchor constant:-10],
+        [stack.topAnchor constraintEqualToAnchor:box.contentView.topAnchor],
+        [stack.bottomAnchor constraintEqualToAnchor:box.contentView.bottomAnchor]
     ]];
     for (NSView *view in views) [view.widthAnchor constraintEqualToAnchor:stack.widthAnchor].active = YES;
     return box;
 }
 
-- (NSView *)loadMainView {
-    NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 540, 570)];
-    self.photos = [self label:@"Photos" secondary:NO];
-    self.photos.font = [NSFont systemFontOfSize:15 weight:NSFontWeightMedium];
-    self.target = [self label:@"Checking…" secondary:NO];
-    self.target.alignment = NSTextAlignmentRight;
-    self.slider = [[StorageSlider alloc] initWithFrame:NSZeroRect];
-    self.slider.cell = [[StorageSliderCell alloc] init];
-    self.slider.minValue = 0;
-    self.slider.maxValue = 1;
-    self.slider.enabled = NO;
-    self.slider.continuous = YES;
-    self.slider.target = self;
-    self.slider.action = @selector(changeLimit:);
-    self.slider.accessibilityLabel = @"Photos storage target in gigabytes";
-    self.slider.toolTip = @"Blue shows Photos storage. Gray shows total disk usage. Drag the handle to choose a target. Changes apply after release.";
-    self.capacity = [self label:@"…" secondary:YES];
-    self.disk = [self label:@"Checking Mac storage…" secondary:YES];
-    self.automatic = [[NSSwitch alloc] initWithFrame:NSZeroRect];
-    self.automatic.target = self;
-    self.automatic.action = @selector(changeAutomatic:);
-    self.automatic.accessibilityLabel = @"Automatic monitoring";
-    self.automatic.enabled = NO;
-    NSStackView *storage = [NSStackView stackViewWithViews:@[
-        [self row:@[self.photos, [self spacer], self.target]], self.slider,
-        [self row:@[[self label:@"0 GB" secondary:YES], [self spacer], self.capacity]], self.disk
-    ]];
-    storage.orientation = NSUserInterfaceLayoutOrientationVertical;
-    storage.alignment = NSLayoutAttributeLeading;
-    storage.spacing = 8;
-    for (NSView *child in storage.arrangedSubviews) [child.widthAnchor constraintEqualToAnchor:storage.widthAnchor].active = YES;
-    NSTextField *monitoringHint = [self label:@"Checks every five minutes, even when System Settings is closed." secondary:YES];
-    monitoringHint.font = [NSFont systemFontOfSize:12];
-    NSBox *storageGroup = [self group:@[storage,
-        [self row:@[[self label:@"Automatic monitoring" secondary:NO], [self spacer], self.automatic]], monitoringHint]];
-
-    self.login = [[NSSwitch alloc] initWithFrame:NSZeroRect];
-    self.login.target = self;
-    self.login.action = @selector(changeLogin:);
-    self.login.accessibilityLabel = @"Start at login";
-    self.loginMessage = [self label:@"" secondary:YES];
-    self.loginMessage.hidden = YES;
-    NSBox *loginGroup = [self group:@[
-        [self row:@[[self label:@"Start at login" secondary:NO], [self spacer], self.login]], self.loginMessage]];
-    self.status = [self label:@"Starting background monitoring…" secondary:YES];
-    self.checked = [self label:@"" secondary:YES];
-    self.checked.font = [NSFont systemFontOfSize:11];
-    self.access = [NSButton buttonWithTitle:@"Allow access…" target:self action:@selector(grantAccess:)];
-    self.access.hidden = YES;
-    self.refresh = [NSButton buttonWithTitle:@"Check now" target:self action:@selector(checkNow:)];
-    NSButton *photos = [NSButton buttonWithTitle:@"Open Photos" target:self action:@selector(openPhotos:)];
-    NSTextField *footer = [self label:@"The target is not a hard limit. iCloud Photos and Optimize Mac Storage must be on. Only macOS chooses which local copies can be freed; items in your Photos library are not deleted." secondary:YES];
-    footer.font = [NSFont systemFontOfSize:12];
-    NSStackView *stack = [NSStackView stackViewWithViews:@[storageGroup, loginGroup, self.status,
-        self.checked, self.access, [self row:@[photos, [self spacer], self.refresh]], footer]];
+- (void)place:(NSArray<NSView *> *)views in:(NSView *)container margin:(CGFloat)margin {
+    NSStackView *stack = [NSStackView stackViewWithViews:views];
     stack.orientation = NSUserInterfaceLayoutOrientationVertical;
     stack.alignment = NSLayoutAttributeLeading;
-    stack.spacing = 16;
+    stack.spacing = 12;
     stack.translatesAutoresizingMaskIntoConstraints = NO;
-    [view addSubview:stack];
+    [container addSubview:stack];
     [NSLayoutConstraint activateConstraints:@[
-        [stack.leadingAnchor constraintEqualToAnchor:view.leadingAnchor constant:24],
-        [stack.trailingAnchor constraintEqualToAnchor:view.trailingAnchor constant:-24],
-        [stack.topAnchor constraintEqualToAnchor:view.topAnchor constant:24],
-        [stack.bottomAnchor constraintLessThanOrEqualToAnchor:view.bottomAnchor constant:-24]
+        [stack.leadingAnchor constraintEqualToAnchor:container.leadingAnchor constant:margin],
+        [stack.trailingAnchor constraintEqualToAnchor:container.trailingAnchor constant:-margin],
+        [stack.topAnchor constraintEqualToAnchor:container.topAnchor constant:margin],
+        [stack.bottomAnchor constraintLessThanOrEqualToAnchor:container.bottomAnchor constant:-margin]
     ]];
-    for (NSView *child in stack.arrangedSubviews) [child.widthAnchor constraintEqualToAnchor:stack.widthAnchor].active = YES;
+    for (NSView *view in views) [view.widthAnchor constraintEqualToAnchor:stack.widthAnchor].active = YES;
+}
+
+- (NSButton *)button:(NSString *)title action:(SEL)action {
+    NSButton *button = [NSButton buttonWithTitle:title target:self action:action];
+    button.controlSize = NSControlSizeSmall;
+    button.font = [NSFont systemFontOfSize:13];
+    return button;
+}
+
+- (NSView *)loadMainView {
+    NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 500, 280)];
+    view.autoresizingMask = NSViewWidthSizable;
+    self.photos = [self label:@"Calculating…" secondary:YES];
+    self.photos.font = [NSFont monospacedDigitSystemFontOfSize:13 weight:NSFontWeightRegular];
+    self.targetPicker = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    self.targetPicker.font = [NSFont systemFontOfSize:13];
+    self.targetPicker.bordered = NO;
+    self.targetPicker.target = self;
+    self.targetPicker.action = @selector(changeTarget:);
+    self.targetPicker.accessibilityLabel = @"Storage target";
+    self.targetPicker.toolTip = @"Choose an approximate local storage target for Photos.";
+    self.targetPicker.enabled = NO;
+    [self.targetPicker addItemWithTitle:@"Checking…"];
+    self.automatic = [self miniSwitch:@"Optimize storage" action:@selector(changeAutomatic:)];
+    self.automatic.enabled = NO;
+    self.automatic.toolTip = @"Automatically check local Photos storage every five minutes.";
+    self.around = [self label:@"Around" secondary:YES];
+    self.around.hidden = YES;
+    NSBox *storage = [self group:@[
+        [self setting:@"Photos on this Mac" control:self.photos],
+        [self setting:@"Storage target" control:[self row:@[self.around, self.targetPicker]]],
+        [self setting:@"Optimize storage" control:self.automatic]
+    ]];
+    self.status = [self label:@"Checking…" secondary:YES];
+    self.status.font = [NSFont systemFontOfSize:12];
+    self.access = [self button:@"Allow access…" action:@selector(grantAccess:)];
+    self.access.hidden = YES;
+    self.recovery = [self button:@"Open Photos…" action:@selector(openPhotos:)];
+    self.recovery.hidden = YES;
+    NSButton *options = [self button:@"Options…" action:@selector(showOptions:)];
+    [self place:@[storage, self.status, self.access, self.recovery,
+        [self row:@[[self spacer], options]]] in:view margin:20];
     self.mainView = view;
-    self.initialKeyView = self.slider;
-    self.firstKeyView = self.slider;
-    self.lastKeyView = self.refresh;
+    self.initialKeyView = self.targetPicker;
+    self.firstKeyView = self.targetPicker;
+    self.lastKeyView = options;
     [self readState];
     return view;
 }
 
+- (void)presentPanel:(NSPanel *)panel {
+    if (!self.mainView.window) return;
+    panel.titleVisibility = NSWindowTitleHidden;
+    panel.titlebarAppearsTransparent = YES;
+    panel.backgroundColor = NSColor.textBackgroundColor;
+    [self.mainView.window beginSheet:panel completionHandler:nil];
+}
+
+- (void)closePanel:(NSPanel *)panel {
+    [panel.sheetParent endSheet:panel];
+    [panel orderOut:nil];
+}
+
+- (void)closeOptions:(id)sender { (void)sender; [self closePanel:self.optionsPanel]; }
+
+- (void)showOptions:(id)sender {
+    (void)sender;
+    if (self.optionsPanel.sheetParent) return;
+    self.optionsPanel = [[StorageOptionsPanel alloc] initWithContentRect:NSMakeRect(0, 0, 440, 340)
+        styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:NO];
+    self.optionsPanel.title = @"Photos Storage Options";
+    self.login = [self miniSwitch:@"Start at login" action:@selector(changeLogin:)];
+    self.updates = [self miniSwitch:@"Automatic updates" action:@selector(changeUpdates:)];
+    self.checkUpdates = [self button:@"Check for Updates…" action:@selector(checkForUpdates:)];
+    self.checked = [self label:@"Not checked yet" secondary:YES];
+    self.checked.font = [NSFont monospacedDigitSystemFontOfSize:13 weight:NSFontWeightRegular];
+    NSBox *settings = [self group:@[
+        [self setting:@"Start at login" control:self.login],
+        [self setting:@"Automatic updates" control:self.updates],
+        [self setting:@"Photos Storage" control:self.checkUpdates],
+        [self setting:@"Last checked" control:self.checked]
+    ]];
+    self.loginMessage = [self label:@"" secondary:YES];
+    self.loginMessage.hidden = YES;
+    self.details = [self label:@"" secondary:YES];
+    self.details.font = [NSFont systemFontOfSize:12];
+    NSTextField *explanation = [self label:@"Checks every five minutes, even with System Settings closed. Only removable local copies are freed. Your photo library is never deleted." secondary:YES];
+    explanation.font = [NSFont systemFontOfSize:12];
+    self.refresh = [self button:@"Check Now" action:@selector(checkNow:)];
+    NSButton *open = [self button:@"Open Photos" action:@selector(openPhotos:)];
+    NSButton *done = [self button:@"Done" action:@selector(closeOptions:)];
+    done.keyEquivalent = @"\r";
+    [self place:@[settings, self.loginMessage, self.details, explanation,
+        [self row:@[open, self.refresh, [self spacer], done]]]
+        in:self.optionsPanel.contentView margin:20];
+    [self readState];
+    [self presentPanel:self.optionsPanel];
+}
+
+- (void)showCustomTarget {
+    self.customPanel = [[NSPanel alloc] initWithContentRect:NSMakeRect(0, 0, 360, 190)
+        styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:NO];
+    self.customPanel.title = @"Storage Target";
+    NSTextField *title = [self label:@"Storage target" secondary:NO];
+    title.font = [NSFont systemFontOfSize:13 weight:NSFontWeightSemibold];
+    self.customInput = [[NSTextField alloc] initWithFrame:NSZeroRect];
+    self.customInput.stringValue = [NSString stringWithFormat:@"%.0f", [self.snapshot[@"limitGB"] doubleValue]];
+    self.customInput.accessibilityLabel = @"Custom storage target in gigabytes";
+    self.customInput.target = self;
+    self.customInput.action = @selector(applyCustomTarget:);
+    [self.customInput.widthAnchor constraintEqualToConstant:80].active = YES;
+    double maximum = floor([self.snapshot[@"totalBytes"] doubleValue] / 1e9);
+    self.customError = [self label:[NSString stringWithFormat:@"Choose a whole number from 20 to %.0f GB.", maximum] secondary:YES];
+    self.customError.font = [NSFont systemFontOfSize:12];
+    NSButton *cancel = [self button:@"Cancel" action:@selector(cancelCustomTarget:)];
+    cancel.keyEquivalent = @"\033";
+    NSButton *done = [self button:@"Done" action:@selector(applyCustomTarget:)];
+    done.keyEquivalent = @"\r";
+    [self place:@[title, [self row:@[self.customInput, [self label:@"GB" secondary:NO], [self spacer]]],
+        self.customError, [self row:@[[self spacer], cancel, done]]]
+        in:self.customPanel.contentView margin:20];
+    [self presentPanel:self.customPanel];
+    [self.customPanel makeFirstResponder:self.customInput];
+    [self.customInput selectText:nil];
+}
+
+- (void)cancelCustomTarget:(id)sender {
+    (void)sender;
+    [self closePanel:self.customPanel];
+    [self readState];
+}
+
+- (void)applyCustomTarget:(id)sender {
+    (void)sender;
+    NSString *text = [self.customInput.stringValue stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    NSScanner *scanner = [NSScanner scannerWithString:text];
+    scanner.locale = NSLocale.currentLocale;
+    double value = 0;
+    double maximum = floor([self.snapshot[@"totalBytes"] doubleValue] / 1e9);
+    if (![scanner scanDouble:&value] || !scanner.isAtEnd || !isfinite(value) || value < 20 || value > maximum || floor(value) != value) {
+        self.customError.stringValue = [NSString stringWithFormat:@"Enter a whole number between 20 and %.0f.", maximum];
+        self.customError.hidden = NO;
+        return;
+    }
+    [self requestTarget:value];
+    [self closePanel:self.customPanel];
+}
+
+- (void)menuWillOpen:(NSMenu *)menu { if (menu == self.targetPicker.menu) self.targetMenuTracking = YES; }
+- (void)menuDidClose:(NSMenu *)menu { if (menu == self.targetPicker.menu) self.targetMenuTracking = NO; }
+
+- (void)updateTargetMenu:(double)value capacity:(double)capacity {
+    if (self.targetMenuTracking || self.customPanel.sheetParent) return;
+    if (capacity < 20) {
+        [self.targetPicker removeAllItems];
+        [self.targetPicker addItemWithTitle:@"Unavailable"];
+        return;
+    }
+    NSMutableSet<NSNumber *> *values = [NSMutableSet setWithArray:@[@20, @30, @50, @75, @100, @150, @200]];
+    if (value >= 20) [values addObject:@(value)];
+    [self.targetPicker removeAllItems];
+    for (NSNumber *choice in [[values allObjects] sortedArrayUsingSelector:@selector(compare:)]) {
+        if (choice.doubleValue > capacity) continue;
+        [self.targetPicker addItemWithTitle:[NSString stringWithFormat:@"%.0f GB", choice.doubleValue]];
+        self.targetPicker.lastItem.representedObject = choice;
+        if (fabs(choice.doubleValue - value) < 0.001) [self.targetPicker selectItem:self.targetPicker.lastItem];
+    }
+    [self.targetPicker.menu addItem:NSMenuItem.separatorItem];
+    [self.targetPicker addItemWithTitle:@"Custom…"];
+    self.targetPicker.lastItem.tag = -1;
+    self.targetPicker.menu.delegate = self;
+}
+
 - (void)ensureAgent {
-    if ([NSRunningApplication runningApplicationsWithBundleIdentifier:agentIdentifier].count) return;
-    NSURL *app = [NSURL fileURLWithPath:[NSHomeDirectory() stringByAppendingPathComponent:@"Applications/Photos Storage.app"]];
+    if ([NSRunningApplication runningApplicationsWithBundleIdentifier:agentIdentifier].count) {
+        self.agentStartupProblem = nil;
+        return;
+    }
+    NSURL *app = nil;
+    NSBundle *selectedBundle = nil;
+    for (NSString *path in @[@"/Applications/Photos Storage.app",
+        [NSHomeDirectory() stringByAppendingPathComponent:@"Applications/Photos Storage.app"]]) {
+        NSBundle *bundle = [NSBundle bundleWithPath:path];
+        if ([bundle.bundleIdentifier isEqual:agentIdentifier] &&
+            [[bundle objectForInfoDictionaryKey:@"CFBundleExecutable"] isEqual:@"PhotosStorage"]) {
+            NSString *version = [bundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"0";
+            NSString *selectedVersion = [selectedBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"0";
+            NSComparisonResult order = [version compare:selectedVersion options:NSNumericSearch];
+            NSString *build = [bundle objectForInfoDictionaryKey:@"CFBundleVersion"] ?: @"0";
+            NSString *selectedBuild = [selectedBundle objectForInfoDictionaryKey:@"CFBundleVersion"] ?: @"0";
+            if (!selectedBundle || order == NSOrderedDescending ||
+                (order == NSOrderedSame && [build compare:selectedBuild options:NSNumericSearch] == NSOrderedDescending)) {
+                app = bundle.bundleURL;
+                selectedBundle = bundle;
+            }
+        }
+    }
+    if (!app) {
+        self.agentStartupProblem = @"Move Photos Storage to Applications, then reopen this pane.";
+        self.status.stringValue = self.agentStartupProblem;
+        self.status.hidden = NO;
+        return;
+    }
     NSWorkspaceOpenConfiguration *configuration = [NSWorkspaceOpenConfiguration configuration];
     configuration.activates = NO;
     configuration.arguments = @[@"--background"];
     [NSWorkspace.sharedWorkspace openApplicationAtURL:app configuration:configuration completionHandler:^(NSRunningApplication *application, NSError *error) {
         (void)application;
         if (error) dispatch_async(dispatch_get_main_queue(), ^{
-            self.status.stringValue = @"Unable to start monitoring. Reinstall Photos Storage and open this pane again.";
+            self.agentStartupProblem = @"Unable to start monitoring. Reinstall Photos Storage and open this pane again.";
+            self.status.stringValue = self.agentStartupProblem;
+            self.status.hidden = NO;
         });
     }];
 }
@@ -261,23 +392,37 @@ static NSString *const agentIdentifier = @"nl.emieljanson.FotoBudget";
     return identifier;
 }
 
-- (void)changeLimit:(id)sender {
-    (void)sender;
-    double value = self.slider.doubleValue >= self.slider.maxValue - 0.5 ? self.slider.maxValue : round(self.slider.doubleValue);
-    self.target.stringValue = [NSString stringWithFormat:@"Target %.0f GB", value];
-    if (self.slider.trackingBudget) return;
+- (void)requestTarget:(double)value {
     self.pendingLimit = value;
     self.pendingLimitAt = NSDate.date.timeIntervalSince1970;
     self.pendingLimitID = [self send:@"setLimit" value:@(value) enabled:nil];
 }
+
+- (void)changeTarget:(id)sender {
+    (void)sender;
+    if (self.targetPicker.selectedItem.tag == -1) [self showCustomTarget];
+    else [self requestTarget:[self.targetPicker.selectedItem.representedObject doubleValue]];
+}
 - (void)changeAutomatic:(id)sender { (void)sender; [self send:@"setAutomatic" value:nil enabled:@(self.automatic.state == NSControlStateValueOn)]; }
 - (void)changeLogin:(id)sender { (void)sender; [self send:@"setLogin" value:nil enabled:@(self.login.state == NSControlStateValueOn)]; }
+- (void)changeUpdates:(id)sender { (void)sender; [self send:@"setUpdates" value:nil enabled:@(self.updates.state == NSControlStateValueOn)]; }
+- (void)checkForUpdates:(id)sender { (void)sender; [self send:@"checkForUpdates" value:nil enabled:nil]; }
 - (void)checkNow:(id)sender { (void)sender; [self send:@"refresh" value:nil enabled:nil]; }
 - (void)openPhotos:(id)sender { (void)sender; [self send:@"openPhotos" value:nil enabled:nil]; }
 - (void)grantAccess:(id)sender {
     (void)sender;
-    NSString *action = [self.snapshot[@"libraryReady"] isEqual:@NO] ? @"grantLibrary" : @"grantPrefetch";
-    [self send:action value:nil enabled:nil];
+    [self send:@"showSetup" value:nil enabled:nil];
+}
+
+- (NSString *)summaryForState:(NSDictionary *)state alive:(BOOL)alive {
+    if (!alive) return self.agentStartupProblem ?: @"Monitoring is not running. Reopen this pane to start it.";
+    if ([state[@"libraryReady"] isEqual:@NO] || [state[@"prefetchReady"] isEqual:@NO]) return @"Allow access to continue.";
+    if (state[@"safetyMessage"]) return @"Check iCloud Photos and Optimize Mac Storage in Photos.";
+    NSString *message = state[@"message"] ?: @"";
+    if ([state[@"busy"] boolValue]) return [message containsString:@"freeing"] ? @"Optimizing…" : @"Checking…";
+    if ([message containsString:@"not responding"]) return @"Waiting for macOS. Will try again.";
+    if (![state[@"automatic"] boolValue]) return @"Automatic optimization is off.";
+    return @"";
 }
 
 - (void)readState {
@@ -288,45 +433,52 @@ static NSString *const agentIdentifier = @"nl.emieljanson.FotoBudget";
     NSDictionary *state = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
     if (![state isKindOfClass:NSDictionary.class] || ![state[@"version"] isEqual:@1]) return;
     self.snapshot = state;
-    BOOL alive = kill([state[@"pid"] intValue], 0) == 0;
+    pid_t agentPID = [state[@"pid"] intValue];
+    BOOL alive = agentPID > 0 && kill(agentPID, 0) == 0;
+    if (alive) self.agentStartupProblem = nil;
     BOOL allowed = alive && [state[@"cleanupAllowed"] boolValue];
     double total = [state[@"totalBytes"] doubleValue];
-    double used = [state[@"usedBytes"] doubleValue];
-    double free = [state[@"freeBytes"] doubleValue];
-    BOOL known = total > 0 && free <= total;
-    self.slider.enabled = allowed && known;
+    BOOL known = total > 0;
+    self.around.hidden = total < 20e9;
+    self.targetPicker.enabled = allowed && total >= 20e9;
     self.automatic.enabled = allowed || [state[@"automatic"] boolValue];
     self.automatic.state = [state[@"automatic"] boolValue] ? NSControlStateValueOn : NSControlStateValueOff;
     self.login.state = [state[@"loginEnabled"] boolValue] ? NSControlStateValueOn : NSControlStateValueOff;
+    self.updates.state = [state[@"automaticUpdates"] boolValue] ? NSControlStateValueOn : NSControlStateValueOff;
+    self.updates.enabled = alive && state[@"automaticUpdates"] != nil;
+    self.checkUpdates.enabled = alive && [state[@"canCheckForUpdates"] boolValue];
     self.loginMessage.stringValue = state[@"loginMessage"] ?: @"";
     self.loginMessage.hidden = !self.loginMessage.stringValue.length;
-    self.status.stringValue = alive ? state[@"message"] : @"Monitoring is not running. Reopen this pane to start it again.";
+    self.status.stringValue = [self summaryForState:state alive:alive];
+    if (allowed && known && total < 20e9) self.status.stringValue = @"This volume is smaller than the minimum storage target.";
+    self.status.hidden = !self.status.stringValue.length;
+    self.status.toolTip = state[@"message"];
+    self.details.stringValue = state[@"message"] ?: @"";
     self.refresh.enabled = alive && ![state[@"busy"] boolValue];
     BOOL needsLibrary = [state[@"libraryReady"] isEqual:@NO];
     BOOL needsPrefetch = [state[@"prefetchReady"] isEqual:@NO];
     self.access.hidden = !needsLibrary && !needsPrefetch;
     self.access.enabled = ![state[@"busy"] boolValue];
-    self.access.title = needsLibrary ? @"Allow Photos library access…" : @"Allow prefetch settings access…";
+    self.access.title = needsLibrary ? @"Allow Photos Library…" : @"Allow Settings Access…";
+    self.recovery.hidden = !state[@"safetyMessage"] || needsLibrary || needsPrefetch;
     NSNumber *checkTime = state[@"lastCheckAt"];
-    if (checkTime) {
+    if (checkTime.doubleValue > 0) {
         NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
         formatter.timeStyle = NSDateFormatterShortStyle;
-        self.checked.stringValue = [@"Last checked " stringByAppendingString:[formatter stringFromDate:[NSDate dateWithTimeIntervalSince1970:checkTime.doubleValue]]];
+        self.checked.stringValue = [formatter stringFromDate:[NSDate dateWithTimeIntervalSince1970:checkTime.doubleValue]];
+    } else self.checked.stringValue = @"Not checked yet";
+    if (!known) {
+        self.photos.stringValue = @"Calculating…";
+        if (!self.targetMenuTracking && !self.customPanel.sheetParent) {
+            [self.targetPicker removeAllItems];
+            [self.targetPicker addItemWithTitle:@"Checking…"];
+        }
+        return;
     }
-    if (!known) return;
-    self.photos.stringValue = [NSString stringWithFormat:@"Photos %.0f GB", used / 1e9];
-    self.capacity.stringValue = [NSString stringWithFormat:@"%.0f GB", total / 1e9];
-    self.disk.stringValue = [NSString stringWithFormat:@"Mac storage: %.0f GB used · %.0f GB free", (total - free) / 1e9, free / 1e9];
-    StorageSliderCell *cell = (StorageSliderCell *)self.slider.cell;
-    cell.photosFraction = used / total;
-    cell.diskFraction = (total - free) / total;
-    self.slider.needsDisplay = YES;
-    self.slider.accessibilityHelp = [NSString stringWithFormat:@"Photos uses %.1f GB. Disk capacity %.0f GB. This target is not a hard limit.", used / 1e9, total / 1e9];
+    double bytes = [state[@"usedBytes"] doubleValue];
+    BOOL terabytes = bytes >= 1e12;
+    self.photos.stringValue = [NSString localizedStringWithFormat:@"%.1f %@", bytes / (terabytes ? 1e12 : 1e9), terabytes ? @"TB" : @"GB"];
     BOOL pending = self.pendingLimitID && ![self.pendingLimitID isEqual:state[@"lastCommandID"]] && NSDate.date.timeIntervalSince1970 - self.pendingLimitAt < 10;
-    if (!self.slider.trackingBudget) {
-        self.slider.maxValue = total / 1e9;
-        self.slider.doubleValue = pending ? self.pendingLimit : [state[@"limitGB"] doubleValue];
-        self.target.stringValue = [NSString stringWithFormat:@"Target %.0f GB", self.slider.doubleValue];
-    }
+    [self updateTargetMenu:pending ? self.pendingLimit : [state[@"limitGB"] doubleValue] capacity:total / 1e9];
 }
 @end
