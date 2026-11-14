@@ -15,7 +15,15 @@ pane="$build_dir/PhotosStorage.prefPane"
 mkdir -p "$app/Contents/MacOS" "$pane/Contents/MacOS" "$pane/Contents/Resources" "$app/Contents/Frameworks" "$app/Contents/Resources"
 cp "$source_dir/Sources/Agent/Info.plist" "$app/Contents/Info.plist"
 cp "$source_dir/Sources/Pane/Info.plist" "$pane/Contents/Info.plist"
-cp /System/Applications/Photos.app/Contents/Resources/AppIcon.icns "$pane/Contents/Resources/Photos.icns"
+iconset="$build_dir/PhotosStorage.iconset"
+mkdir -p "$iconset"
+for size in 16 32 128 256 512; do
+  sips -z "$size" "$size" "$source_dir/Resources/AppIcon.png" --out "$iconset/icon_${size}x${size}.png" >/dev/null
+  retina_size=$((size * 2))
+  sips -z "$retina_size" "$retina_size" "$source_dir/Resources/AppIcon.png" --out "$iconset/icon_${size}x${size}@2x.png" >/dev/null
+done
+iconutil -c icns "$iconset" -o "$app/Contents/Resources/PhotosStorage.icns"
+cp "$app/Contents/Resources/PhotosStorage.icns" "$pane/Contents/Resources/PhotosStorage.icns"
 ditto "$sparkle_dir/Sparkle.framework" "$app/Contents/Frameworks/Sparkle.framework"
 cp "$sparkle_dir/LICENSE" "$app/Contents/Resources/Sparkle-LICENSE.txt"
 xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation -framework Photos \
