@@ -9,13 +9,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/emieljanson/photos-storage/releases/download/v0.3.1/Photos-Storage-0.3.1-arm64.zip"><strong>Download for Apple silicon</strong></a>
+  <a href="https://github.com/emieljanson/photos-storage/releases/download/v0.4.0/Photos-Storage-0.4.0-arm64.zip"><strong>Download for Apple silicon</strong></a>
   &nbsp;·&nbsp;
-  <a href="https://github.com/emieljanson/photos-storage/releases/tag/v0.3.1">Release notes</a>
+  <a href="https://github.com/emieljanson/photos-storage/releases/tag/v0.4.0">Release notes</a>
 </p>
 
 <p align="center">
-  <sub>Apple silicon · Current download: macOS 27.2, build 26B123</sub>
+  <sub>Apple silicon · macOS 13 or later</sub>
 </p>
 
 <p align="center">
@@ -43,11 +43,9 @@ are included. Opening the app later takes you back to its settings.
 ## Compatibility
 
 Requires an **Apple silicon Mac**, **iCloud Photos**, and **Optimize Mac Storage**.
-The published **0.3.1** download requires **macOS 27.2, build 26B123**.
-The **0.4.0** source targets **macOS 13 and later**, with runtime checks tested on
-macOS 15, 26, and 27. Its download is being prepared. Photos Storage checks that
-the required Photos features are available before changing settings or freeing
-local copies.
+Requires **macOS 13 or later**. Runtime checks pass on macOS 15, 26, and 27;
+macOS 13 and 14 have not been runtime-tested. Photos Storage checks the required
+Photos features before changing settings or freeing local copies.
 This uses private macOS interfaces; [compatibility checks](docs/COMPATIBILITY.md)
 cover the tested versions and runtime safeguards.
 
