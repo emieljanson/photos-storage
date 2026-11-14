@@ -9,13 +9,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/emieljanson/photos-storage/releases/download/v0.3.1/Photos-Storage-0.3.1-arm64.zip"><strong>Download for Apple silicon</strong></a>
+  <a href="https://github.com/emieljanson/photos-storage/releases/download/v0.4.1/Photos-Storage-0.4.1-arm64.zip"><strong>Download for Apple silicon</strong></a>
   &nbsp;·&nbsp;
-  <a href="https://github.com/emieljanson/photos-storage/releases/tag/v0.3.1">Release notes</a>
+  <a href="https://github.com/emieljanson/photos-storage/releases/tag/v0.4.1">Release notes</a>
 </p>
 
 <p align="center">
-  <sub>Experimental preview · macOS 27.2, build 26B123</sub>
+  <sub>Apple silicon · macOS 13 or later</sub>
 </p>
 
 <p align="center">
@@ -43,8 +43,11 @@ are included. Opening the app later takes you back to its settings.
 ## Compatibility
 
 Requires an **Apple silicon Mac**, **iCloud Photos**, and **Optimize Mac Storage**.
-This experimental preview uses private macOS interfaces and is currently verified
-only on **macOS 27.2, build 26B123**. Other builds pause cleanup.
+Requires **macOS 13 or later**. Runtime checks pass on macOS 15, 26, and 27;
+macOS 13 and 14 have not been runtime-tested. Photos Storage checks the required
+Photos features before changing settings or freeing local copies.
+This uses private macOS interfaces; [compatibility checks](docs/COMPATIBILITY.md)
+cover the tested versions and runtime safeguards.
 
 Photos Storage asks macOS to release eligible local copies. It does not delete
 items from your Photos library. macOS decides what can be freed, and Photos
@@ -53,7 +56,8 @@ still needs free disk space to sync. This does not replace a backup.
 ## For developers
 
 [How it works, build instructions, and tests](docs/DEVELOPMENT.md) ·
-[Interface design](DESIGN.md) · [Release process](RELEASING.md)
+[Compatibility checks](docs/COMPATIBILITY.md) · [Interface design](DESIGN.md) ·
+[Release process](RELEASING.md)
 
 ## License
 

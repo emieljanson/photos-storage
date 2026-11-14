@@ -48,7 +48,7 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
             NSApp.terminate(nil)
             return
         }
-        defaults.register(defaults: ["limitGB": 30.0, "automatic": false, "nativeLastReserveGiB": 13])
+        defaults.register(defaults: ["limitGB": 30.0, "automatic": false])
         defaults.set(limitGB.isFinite ? min(100_000, max(20, limitGB)) : 30, forKey: "limitGB")
         restorePrefetchAccess()
         restoreLibraryAccess()
@@ -484,7 +484,10 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
             status = accessProblem ?? ""
         case "native_profile_unconfirmed": status = "The new prefetch setting could not be confirmed. Monitoring is off."
         case "library_scan_unavailable": status = "The library could not be measured. Allow access to the local library and check again."
-        case "untested_macos": status = "This macOS version has not been verified. Automatic monitoring is off."
+        case "photos_api_unavailable", "untested_macos":
+            state.cleanupAllowed = false
+            status = "This version of Photos is not supported. Automatic optimization is off."
+            state.safetyMessage = nil
         case "scope_not_verified", "unexpected_quota": status = "Photos storage could not be safely identified. Automatic monitoring is off."
         default: status = "macOS did not confirm cleanup. Automatic monitoring is off. Check Photos and try again."
         }
@@ -559,6 +562,9 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
                    self.defaults.integer(forKey: "pendingNativeReserveGiB") == actual {
                     self.defaults.set(actual, forKey: "nativeLastReserveGiB")
                     self.defaults.removeObject(forKey: "pendingNativeReserveGiB")
+                }
+                if self.defaults.object(forKey: "nativeLastReserveGiB") == nil {
+                    self.defaults.set(actual, forKey: "nativeLastReserveGiB")
                 }
                 let expected = self.defaults.integer(forKey: "nativeLastReserveGiB")
                 guard actual == expected else {

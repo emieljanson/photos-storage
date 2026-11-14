@@ -9,10 +9,48 @@ permissions:
 
 jobs:
   test-and-build:
-    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-26, xcode-27]
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
       - name: Run isolated tests
         run: zsh tests/run.sh
       - name: Build and verify signatures
         run: zsh build.sh
+      - name: Verify Apple silicon deployment target
+        run: python3 tests/verify-build.py
+      - name: Check native Photos capabilities without cleanup
+        run: '"$HOME/Library/Caches/PhotosStorage/build/Photos Storage.app/Contents/MacOS/FotoBudgetCacheHelper" --capabilities'
+      - name: Archive the newest-SDK build for compatibility checks
+        if: matrix.runner == 'xcode-27'
+        run: ditto -c -k --sequesterRsrc --keepParent "$HOME/Library/Caches/PhotosStorage/build/Photos Storage.app" candidate.zip
+      - uses: actions/upload-artifact@v4
+        if: matrix.runner == 'xcode-27'
+        with:
+          name: compatibility-candidate
+          path: candidate.zip
+          retention-days: 1
+
+  same-binary:
+    needs: test-and-build
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-26, xcode-27]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          name: compatibility-candidate
+      - name: Extract the same app on each macOS version
+        run: ditto -x -k candidate.zip candidate
+      - name: Check native support and background launch
+        run: python3 tests/smoke-app.py 'candidate/Photos Storage.app'
+      - name: Load the actual embedded Settings pane
+        run: |
+          xcrun clang -target arm64-apple-macos13.0 -Wall -Wextra -Werror -fobjc-arc -framework Cocoa -framework PreferencePanes tests/SmokePane.m -o /tmp/smoke-pane
+          /tmp/smoke-pane 'candidate/Photos Storage.app/Contents/PlugIns/PhotosStorage.prefPane'

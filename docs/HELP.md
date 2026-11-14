@@ -4,8 +4,9 @@
 
 ## Install
 
-[Download Photos Storage 0.3.1](https://github.com/emieljanson/photos-storage/releases/download/v0.3.1/Photos-Storage-0.3.1-arm64.zip)
-for Apple silicon and **macOS 27.2, build 26B123**.
+[Download Photos Storage 0.4.1](https://github.com/emieljanson/photos-storage/releases/download/v0.4.1/Photos-Storage-0.4.1-arm64.zip)
+for Apple silicon and **macOS 13 or later**. See the
+[tested versions](COMPATIBILITY.md) for runtime verification details.
 
 Unzip the download, move **Photos Storage.app** to **Applications**, and open it.
 The app is signed with Developer ID and notarized by Apple.
@@ -25,7 +26,7 @@ against the expected library or settings file before it is saved.
 
 Setup checks iCloud Photos and Optimize Mac Storage before showing the ready
 screen. Its **Open System Settings** button opens **Photos Storage** directly.
-On the verified macOS build, the app reopens System Settings first to avoid
+The app reopens System Settings first to avoid
 a third-party-pane reload issue. If Settings refuses to quit, setup asks you
 to close it and retry; it does not force-quit it.
 Choose a target and turn on **Optimize storage** there. **Start at login** is
@@ -36,11 +37,10 @@ login or from the pane stays silent. Missing permissions can be restored
 from the pane's access button, which reopens the guided setup.
 
 If a pane is blank after navigating away and back inside System Settings,
-open Photos Storage again to reload it. This preview cannot repair the
-operating system's legacy preference-pane host.
+open Photos Storage again to reload it.
 
 The macOS third-party preference-pane host currently opens a wider window
-than Apple's own settings panes. This preview does not bypass that host.
+than Apple's own panes.
 
 ## Updates
 
@@ -52,7 +52,7 @@ is Developer ID signed and notarized. Usage profiling is disabled.
 The agent waits for its current work to finish before automatically installing
 an update. It resumes in the background. The embedded settings pane is updated
 when System Settings closes. Use **Options… → Check for Updates…** for a manual
-check. The current preview receives updates from this repository's public feed.
+check. Photos Storage receives updates from this repository's signed feed.
 
 ## Remove
 

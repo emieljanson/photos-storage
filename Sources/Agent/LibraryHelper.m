@@ -5,6 +5,7 @@
 #import <sys/mount.h>
 #import "LibraryFootprint.h"
 #import "PhotoSafetyMetadata.h"
+#import "PhotoRuntimeSupport.h"
 #import <dlfcn.h>
 #import <errno.h>
 #import <fcntl.h>
@@ -26,11 +27,15 @@ static void emit(NSDictionary *result) {
     if (data) { fwrite(data.bytes, 1, data.length, stdout); fputc('\n', stdout); }
 }
 
+static BOOL systemLibraryAPIAvailable(void) {
+    Method method=class_getClassMethod(PHPhotoLibrary.class,NSSelectorFromString(@"systemPhotoLibraryURL"));
+    return method && !strcmp(method_getTypeEncoding(method),"@16@0:8");
+}
+
 static NSURL *activeLibrary(void) {
+    if (!systemLibraryAPIAvailable()) return nil;
     Class cls=PHPhotoLibrary.class;
     SEL selector=NSSelectorFromString(@"systemPhotoLibraryURL");
-    Method method=class_getClassMethod(cls,selector);
-    if (!method || strcmp(method_getTypeEncoding(method),"@16@0:8")) return nil;
     NSURL *url=((NSURL *(*)(id,SEL))objc_msgSend)(cls,selector);
     struct stat info;
     if (!url.isFileURL || ![url.pathExtension isEqual:@"photoslibrary"] ||
@@ -99,7 +104,8 @@ int main(int argc, const char *argv[]) {
         BOOL execute = argc == 3 && strcmp(argv[1], "--purge-bytes") == 0;
         BOOL snapshot = argc == 2 && strcmp(argv[1], "--snapshot") == 0;
         BOOL safetyOnly = argc == 2 && strcmp(argv[1], "--safety") == 0;
-        if (!execute && !snapshot && !safetyOnly) { result[@"error_code"]=@"invalid_arguments"; emit(result); return 2; }
+        BOOL capabilities = argc == 2 && strcmp(argv[1], "--capabilities") == 0;
+        if (!execute && !snapshot && !safetyOnly && !capabilities) { result[@"error_code"]=@"invalid_arguments"; emit(result); return 2; }
         uint64_t requested = 0;
         if (execute) {
             char *end = NULL;
@@ -109,11 +115,25 @@ int main(int argc, const char *argv[]) {
                 result[@"error_code"]=@"invalid_amount"; emit(result); return 2;
             }
         }
-        NSDictionary *version = [NSDictionary dictionaryWithContentsOfFile:@"/System/Library/CoreServices/SystemVersion.plist"];
-        if (![version[@"ProductBuildVersion"] isEqual:@"26B123"]) {
-            result[@"error_code"]=@"untested_macos"; emit(result); return 3;
-        }
         alarm(95);
+        void *photosFramework=dlopen("/System/Library/PrivateFrameworks/PhotoLibraryServices.framework/PhotoLibraryServices",RTLD_NOW|RTLD_LOCAL);
+        BOOL libraryAPI=systemLibraryAPIAvailable();
+        BOOL modeRecognized=photosFramework && PhotoOptimizationModeRecognized(NSClassFromString(@"PLCloudResourcePrefetchManager"));
+        void *framework=dlopen("/System/Library/PrivateFrameworks/CacheDelete.framework/CacheDelete",RTLD_NOW|RTLD_LOCAL);
+        Query query=framework ? (Query)dlsym(framework,"CacheDeleteCopyItemizedPurgeableSpaceWithInfo") : NULL;
+        Purge purge=framework ? (Purge)dlsym(framework,"CacheDeletePurgeSpaceWithInfoSync") : NULL;
+        result[@"photos_api_available"]=@(libraryAPI);
+        result[@"optimization_mode_recognized"]=@(modeRecognized);
+        result[@"cache_api_available"]=@(query && purge);
+        if (capabilities) {
+            result[@"os_version"]=NSProcessInfo.processInfo.operatingSystemVersionString;
+            result[@"ok"]=@(libraryAPI && modeRecognized && query && purge);
+            if (![result[@"ok"] boolValue]) result[@"error_code"]=@"photos_api_unavailable";
+            emit(result); return [result[@"ok"] boolValue] ? 0 : 5;
+        }
+        if (!libraryAPI || !modeRecognized || !query || !purge) {
+            result[@"error_code"]=@"photos_api_unavailable"; emit(result); return 5;
+        }
         NSURL *library=activeLibrary();
         struct stat identity;
         struct statfs filesystem;
@@ -141,10 +161,6 @@ int main(int argc, const char *argv[]) {
             result[@"error_code"]=@"library_changed"; emit(result); return 4;
         }
         result[@"volume_uuid"]=[uuid description];
-        void *framework = dlopen("/System/Library/PrivateFrameworks/CacheDelete.framework/CacheDelete", RTLD_NOW|RTLD_LOCAL);
-        Query query = framework ? (Query)dlsym(framework,"CacheDeleteCopyItemizedPurgeableSpaceWithInfo") : NULL;
-        Purge purge = framework ? (Purge)dlsym(framework,"CacheDeletePurgeSpaceWithInfoSync") : NULL;
-        if (!query || !purge) { result[@"error_code"]=@"api_unavailable"; emit(result); return 5; }
         BOOL filterValid = NO;
         NSDictionary *estimate = queryPhotos(query,volume,&filterValid);
         if (!estimate || !filterValid) { result[@"error_code"]=@"scope_not_verified"; emit(result); return 6; }

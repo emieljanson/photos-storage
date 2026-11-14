@@ -6,7 +6,7 @@ typedef struct {
     NSInteger prefetchMode;
 } PhotoSafetyState;
 
-// On the pinned macOS build, mode 0 optimizes storage; mode 1 keeps originals.
+// The helper verifies Photos identifies mode 0 as "optimize" at runtime.
 // Missing replies and other modes never authorize an operation.
 static BOOL PhotoAnnotateSafety(PhotoSafetyState state, NSMutableDictionary *result) {
     NSString *reason=nil;

@@ -7,8 +7,8 @@ Never export signing secrets into this repository.
 
 1. Update the marketing version and increase `CFBundleVersion` in both
    `Sources/Agent/Info.plist` and `Sources/Pane/Info.plist`.
-2. Update `RELEASE_NOTES.md`. Keep the supported macOS build explicit; a new
-   OS build needs separate engine validation.
+2. Update `RELEASE_NOTES.md`. Keep the minimum macOS version and required Photos features explicit.
+   Run the read-only capability check and isolated safety tests on the CI macOS matrix.
 3. Run `zsh tests/run.sh`.
 4. Set the signing identity, team, and a **new** build directory:
 
@@ -33,7 +33,7 @@ Never export signing secrets into this repository.
 6. Inspect the ZIP, English notes, checksum, and signed `release/appcast.xml`.
    The private update key stays in Keychain. Do not edit a signed appcast;
    regenerate it with Sparkle's `generate_appcast` if anything changes.
-7. Create a GitHub draft prerelease for the exact source commit. Upload the ZIP
+7. Create a GitHub draft release for the exact source commit. Upload the ZIP
    and `SHA256SUMS.txt` with `gh release upload`. Publish the release, then copy
    its generated appcast to the repository root and push it to `main`.
    Keep old feed entries when preparing future releases. The release script

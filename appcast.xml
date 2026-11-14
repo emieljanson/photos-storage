@@ -6,6 +6,71 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>Photos Storage</title>
         <item>
+            <title>0.4.1</title>
+            <pubDate>Sat, 14 Nov 2026 11:37:13 +0100</pubDate>
+            <sparkle:version>11</sparkle:version>
+            <sparkle:shortVersionString>0.4.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# Photos Storage 0.4.1
+
+For Apple silicon Macs running **macOS 13 or later**.
+Runtime checks pass on macOS 15, 26, and 27. macOS 13 and 14 have not been
+runtime-tested.
+
+- Builds for older macOS versions, including the app, helper, and System Settings pane.
+- Checks the installed Photos features and the meaning of its optimization setting instead of requiring one exact macOS build.
+- Bounds background helper checks so a stalled process cannot leave monitoring busy indefinitely.
+- Handles first use when Photos has not yet stored a prefetch override.
+- Shows an unsupported Photos version directly, without sending users to unrelated iCloud settings.
+
+Existing iCloud Photos and Optimize Mac Storage checks remain in place;
+unverifiable settings stop cleanup. Photos
+Storage asks macOS to release eligible local copies; it does not delete items
+from your photo library. The storage target is approximate.
+
+The app is Developer ID signed and notarized by Apple, with signed automatic
+updates. Unzip the download, move **Photos Storage.app** to **Applications**, and
+open it. Setup takes you to **System Settings → Photos Storage**.
+
+If a third-party settings pane appears blank after navigating away and back,
+reopen Photos Storage. macOS may display a wider window for third-party panes.
+]]></description>
+            <enclosure url="https://github.com/emieljanson/photos-storage/releases/download/v0.4.1/Photos-Storage-0.4.1-arm64.zip" length="4644935" type="application/octet-stream" sparkle:edSignature="HVY0flRQUtnceDgCPglF1rxSaKpl4FIBCRx47aILqA/CfHmRfTNoBLlZrHuO7TYbwyzh4GGLEW6eS0vyIzQqBg=="/>
+        </item>
+        <item>
+            <title>0.4.0</title>
+            <pubDate>Sat, 14 Nov 2026 11:30:32 +0100</pubDate>
+            <sparkle:version>10</sparkle:version>
+            <sparkle:shortVersionString>0.4.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# Photos Storage 0.4.0
+
+For Apple silicon Macs running **macOS 13 or later**.
+Runtime checks pass on macOS 15, 26, and 27. macOS 13 and 14 have not been
+runtime-tested.
+
+- Builds for older macOS versions, including the app, helper, and System Settings pane.
+- Checks the installed Photos features and the meaning of its optimization setting instead of requiring one exact macOS build.
+- Bounds background helper checks so a stalled process cannot leave monitoring busy indefinitely.
+- Handles first use when Photos has not yet stored a prefetch override.
+
+Existing iCloud Photos and Optimize Mac Storage checks remain in place;
+unverifiable settings stop cleanup. Photos
+Storage asks macOS to release eligible local copies; it does not delete items
+from your photo library. The storage target is approximate.
+
+The app is Developer ID signed and notarized by Apple, with signed automatic
+updates. Unzip the download, move **Photos Storage.app** to **Applications**, and
+open it. Setup takes you to **System Settings → Photos Storage**.
+
+If a third-party settings pane appears blank after navigating away and back,
+reopen Photos Storage. macOS may display a wider window for third-party panes.
+]]></description>
+            <enclosure url="https://github.com/emieljanson/photos-storage/releases/download/v0.4.0/Photos-Storage-0.4.0-arm64.zip" length="4644849" type="application/octet-stream" sparkle:edSignature="h08NQCvSjebrSbAz8dS6mJeTnlIyfuGoZ7cySYVRSoGuNI+h+zKNq9jPTXVrlu1ODjx7wWTK8mO6J1xHLhh/BA=="/>
+        </item>
+        <item>
             <title>0.3.1</title>
             <pubDate>Sat, 14 Nov 2026 07:10:50 +0100</pubDate>
             <sparkle:version>9</sparkle:version>
@@ -71,6 +136,6 @@ open Photos Storage again to reload it.
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: knKE5zSPcpPi5E0V+GeyCpJ7TGhLCg+tsIoOk0mNTef3cUYEOCL2/HGkNLOQtEiaMPpYepn//sY54a981i+iCQ==
-length: 3972
+edSignature: 6cxlL/QZoQDDQanVlAenwyoXQ2GHaD6IwHzRiZGrOBebgmUHNnyHE2aoHsLnLnT3pnyreJpu0AlNhYRRbk00Cg==
+length: 8020
 -->
