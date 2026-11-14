@@ -21,7 +21,7 @@ free space on the whole disk; other apps can consume that space.
 
 ## Install
 
-[Download Photos Storage 0.3.1](https://github.com/emieljanson/photos-storage/releases/download/v0.3.1/Photos-Storage-0.3.1-arm64.zip)
+[Download Photos Storage 0.3.0](https://github.com/emieljanson/photos-storage/releases/download/v0.3.0/Photos-Storage-0.3.0-arm64.zip)
 for Apple silicon and **macOS 27.2, build 26B123**.
 
 Unzip the download, move **Photos Storage.app** to **Applications**, and open it.
