@@ -416,9 +416,10 @@ static NSString *const agentIdentifier = @"nl.emieljanson.FotoBudget";
 
 - (NSString *)summaryForState:(NSDictionary *)state alive:(BOOL)alive {
     if (!alive) return self.agentStartupProblem ?: @"Monitoring is not running. Reopen this pane to start it.";
+    NSString *message = state[@"message"] ?: @"";
+    if ([message hasPrefix:@"This version of Photos is not supported."]) return @"This version of Photos is not supported.";
     if ([state[@"libraryReady"] isEqual:@NO] || [state[@"prefetchReady"] isEqual:@NO]) return @"Allow access to continue.";
     if (state[@"safetyMessage"]) return @"Check iCloud Photos and Optimize Mac Storage in Photos.";
-    NSString *message = state[@"message"] ?: @"";
     if ([state[@"busy"] boolValue]) return [message containsString:@"freeing"] ? @"Optimizing…" : @"Checking…";
     if ([message containsString:@"not responding"]) return @"Waiting for macOS. Will try again.";
     if (![state[@"automatic"] boolValue]) return @"Automatic optimization is off.";

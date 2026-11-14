@@ -487,7 +487,7 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
         case "photos_api_unavailable", "untested_macos":
             state.cleanupAllowed = false
             status = "This version of Photos is not supported. Automatic optimization is off."
-            state.safetyMessage = status
+            state.safetyMessage = nil
         case "scope_not_verified", "unexpected_quota": status = "Photos storage could not be safely identified. Automatic monitoring is off."
         default: status = "macOS did not confirm cleanup. Automatic monitoring is off. Check Photos and try again."
         }

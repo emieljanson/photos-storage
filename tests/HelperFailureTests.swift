@@ -87,6 +87,8 @@ for code in ["photos_api_unavailable", "untested_macos"] {
     controller.stopOnError(code)
     expect(!controller.state.cleanupAllowed && !controller.automatic,
            "Losing Photos support must clear previously granted cleanup state and stop monitoring")
+    expect(controller.state.safetyMessage == nil,
+           "Unsupported Photos must not route users to iCloud settings recovery")
 }
 
 print("HelperFailureTests passed")
