@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/settings.png" width="820" alt="Photos Storage in System Settings: local Photos usage, an approximate 25 GB storage target, and Optimize storage enabled.">
+  <img src="docs/images/settings-window.png" width="820" alt="Photos Storage selected in the System Settings sidebar, with local Photos usage, a storage target around 25 GB, and Optimize storage enabled.">
 </p>
 
 - **Choose a target.** See how much space Photos uses locally and choose an amount from 20 GB.
