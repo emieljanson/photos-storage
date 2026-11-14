@@ -27,11 +27,15 @@ static void emit(NSDictionary *result) {
     if (data) { fwrite(data.bytes, 1, data.length, stdout); fputc('\n', stdout); }
 }
 
+static BOOL systemLibraryAPIAvailable(void) {
+    Method method=class_getClassMethod(PHPhotoLibrary.class,NSSelectorFromString(@"systemPhotoLibraryURL"));
+    return method && !strcmp(method_getTypeEncoding(method),"@16@0:8");
+}
+
 static NSURL *activeLibrary(void) {
+    if (!systemLibraryAPIAvailable()) return nil;
     Class cls=PHPhotoLibrary.class;
     SEL selector=NSSelectorFromString(@"systemPhotoLibraryURL");
-    Method method=class_getClassMethod(cls,selector);
-    if (!method || strcmp(method_getTypeEncoding(method),"@16@0:8")) return nil;
     NSURL *url=((NSURL *(*)(id,SEL))objc_msgSend)(cls,selector);
     struct stat info;
     if (!url.isFileURL || ![url.pathExtension isEqual:@"photoslibrary"] ||
@@ -113,8 +117,7 @@ int main(int argc, const char *argv[]) {
         }
         alarm(95);
         void *photosFramework=dlopen("/System/Library/PrivateFrameworks/PhotoLibraryServices.framework/PhotoLibraryServices",RTLD_NOW|RTLD_LOCAL);
-        Method libraryMethod=class_getClassMethod(PHPhotoLibrary.class,NSSelectorFromString(@"systemPhotoLibraryURL"));
-        BOOL libraryAPI=libraryMethod && !strcmp(method_getTypeEncoding(libraryMethod),"@16@0:8");
+        BOOL libraryAPI=systemLibraryAPIAvailable();
         BOOL modeRecognized=photosFramework && PhotoOptimizationModeRecognized(NSClassFromString(@"PLCloudResourcePrefetchManager"));
         void *framework=dlopen("/System/Library/PrivateFrameworks/CacheDelete.framework/CacheDelete",RTLD_NOW|RTLD_LOCAL);
         Query query=framework ? (Query)dlsym(framework,"CacheDeleteCopyItemizedPurgeableSpaceWithInfo") : NULL;

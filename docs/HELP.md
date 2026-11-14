@@ -5,7 +5,8 @@
 ## Install
 
 [Download Photos Storage 0.3.1](https://github.com/emieljanson/photos-storage/releases/download/v0.3.1/Photos-Storage-0.3.1-arm64.zip)
-for Apple silicon and **macOS 13 or later**.
+for Apple silicon and **macOS 27.2, build 26B123**. The broader macOS compatibility
+in 0.4.0 is in the source; its verified download is being prepared.
 
 Unzip the download, move **Photos Storage.app** to **Applications**, and open it.
 The app is signed with Developer ID and notarized by Apple.

@@ -47,6 +47,15 @@ expect(bounded.failed && bounded.failureCode == "helper_timeout", "The parent mu
 expect(Date().timeIntervalSince(hungStarted) < 4, "An unresponsive helper must not leave monitoring busy indefinitely")
 let missing = runCacheProcess(path: fixtures.appendingPathComponent("missing").path, arguments: [], timeout: 1)
 expect(missing.failed && missing.failureCode == "helper_launch_failed", "A missing helper must report launch failure")
+let previousLaunchError = UserDefaults.standard.object(forKey: "lastHelperLaunchErrorCode")
+defer {
+    if let previousLaunchError { UserDefaults.standard.set(previousLaunchError, forKey: "lastHelperLaunchErrorCode") }
+    else { UserDefaults.standard.removeObject(forKey: "lastHelperLaunchErrorCode") }
+}
+let wrapperFailure = runCacheHelper(path: fixtures.appendingPathComponent("missing").path, bytes: nil)
+expect(wrapperFailure.failed && wrapperFailure.failureCode == "helper_launch_failed", "The production wrapper must retain launch failures")
+expect(wrapperFailure.launchErrorCode != nil && UserDefaults.standard.integer(forKey: "lastHelperLaunchErrorCode") == wrapperFailure.launchErrorCode,
+       "The production wrapper must publish its launch-failure diagnostic")
 
 let emptyPreferences = try PropertyListSerialization.data(fromPropertyList: [String: Int](), format: .binary, options: 0)
 let malformedPreferences = try PropertyListSerialization.data(fromPropertyList: ["PLPrefetchMinimumFreeDiskGB": "invalid"], format: .binary, options: 0)
@@ -72,5 +81,12 @@ expect(!controller.automatic && !controller.state.cleanupAllowed,
        "An unverified iCloud configuration must still block cleanup and stop automatic monitoring")
 controller.stopOnError("helper_timeout")
 expect(!controller.automatic, "A timeout must never turn monitoring back on after a safety failure")
+for code in ["photos_api_unavailable", "untested_macos"] {
+    controller.state.cleanupAllowed = true
+    controller.defaults.set(true, forKey: "automatic")
+    controller.stopOnError(code)
+    expect(!controller.state.cleanupAllowed && !controller.automatic,
+           "Losing Photos support must clear previously granted cleanup state and stop monitoring")
+}
 
 print("HelperFailureTests passed")
