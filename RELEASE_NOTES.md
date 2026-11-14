@@ -5,6 +5,7 @@ For Apple silicon Macs running **macOS 13 or later**.
 - Builds for older macOS versions, including the app, helper, and System Settings pane.
 - Checks the installed Photos features and the meaning of its optimization setting instead of requiring one exact macOS build.
 - Bounds background helper checks so a stalled process cannot leave monitoring busy indefinitely.
+- Handles first use when Photos has not yet stored a prefetch override.
 
 Existing iCloud Photos and Optimize Mac Storage checks remain in place. Photos
 Storage asks macOS to release eligible local copies; it does not delete items

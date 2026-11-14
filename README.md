@@ -53,7 +53,8 @@ still needs free disk space to sync. This does not replace a backup.
 ## For developers
 
 [How it works, build instructions, and tests](docs/DEVELOPMENT.md) ·
-[Interface design](DESIGN.md) · [Release process](RELEASING.md)
+[Compatibility checks](docs/COMPATIBILITY.md) · [Interface design](DESIGN.md) ·
+[Release process](RELEASING.md)
 
 ## License
 

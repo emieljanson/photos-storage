@@ -7,6 +7,8 @@
 Run these commands from the repository root.
 
 Requires Xcode command-line tools with a Swift 6 compiler and a macOS SDK.
+Builds target Apple silicon and macOS 13 or later. See
+[compatibility checks](COMPATIBILITY.md) for the tested runtimes and safety gates.
 
 ```sh
 zsh tests/run.sh

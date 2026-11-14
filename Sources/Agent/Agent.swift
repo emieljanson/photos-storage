@@ -560,8 +560,10 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
                     self.defaults.set(actual, forKey: "nativeLastReserveGiB")
                     self.defaults.removeObject(forKey: "pendingNativeReserveGiB")
                 }
-                let expected = self.defaults.object(forKey: "nativeLastReserveGiB") == nil
-                    ? actual : self.defaults.integer(forKey: "nativeLastReserveGiB")
+                if self.defaults.object(forKey: "nativeLastReserveGiB") == nil {
+                    self.defaults.set(actual, forKey: "nativeLastReserveGiB")
+                }
+                let expected = self.defaults.integer(forKey: "nativeLastReserveGiB")
                 guard actual == expected else {
                     self.stopOnError("native_profile_conflict")
                     return
