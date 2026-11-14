@@ -484,7 +484,7 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
             status = accessProblem ?? ""
         case "native_profile_unconfirmed": status = "The new prefetch setting could not be confirmed. Monitoring is off."
         case "library_scan_unavailable": status = "The library could not be measured. Allow access to the local library and check again."
-        case "untested_macos": status = "This macOS version has not been verified. Automatic monitoring is off."
+        case "photos_api_unavailable", "untested_macos": status = "This version of Photos is not supported. Automatic optimization is off."
         case "scope_not_verified", "unexpected_quota": status = "Photos storage could not be safely identified. Automatic monitoring is off."
         default: status = "macOS did not confirm cleanup. Automatic monitoring is off. Check Photos and try again."
         }

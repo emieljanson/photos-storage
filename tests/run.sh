@@ -4,7 +4,7 @@ set -euo pipefail
 source_dir="${0:A:h}"
 build_dir="$(mktemp -d /tmp/fotobudget-tests.XXXXXXXX)"
 trap 'rm -rf -- "$build_dir"' EXIT
-for name in FootprintTests SafetyGuardTests SafetyMetadataTests; do
+for name in FootprintTests SafetyGuardTests SafetyMetadataTests RuntimeSupportTests; do
   xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation \
     "$source_dir/$name.m" -o "$build_dir/$name"
   "$build_dir/$name"

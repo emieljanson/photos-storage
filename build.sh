@@ -5,6 +5,7 @@ source_dir="${0:A:h}"
 source "$source_dir/scripts/sparkle.sh"
 output_dir="${PHOTOS_STORAGE_BUILD_DIR:-$HOME/Library/Caches/PhotosStorage/build}"
 sign_identity="${PHOTOS_STORAGE_SIGN_IDENTITY:--}"
+target='arm64-apple-macos13.0'
 sign_options=(--force --sign "$sign_identity" --options runtime)
 if [[ "$sign_identity" != '-' ]]; then sign_options+=(--timestamp); fi
 mkdir -p "$output_dir"
@@ -26,9 +27,9 @@ iconutil -c icns "$iconset" -o "$app/Contents/Resources/PhotosStorage.icns"
 cp "$app/Contents/Resources/PhotosStorage.icns" "$pane/Contents/Resources/PhotosStorage.icns"
 ditto "$sparkle_dir/Sparkle.framework" "$app/Contents/Frameworks/Sparkle.framework"
 cp "$sparkle_dir/LICENSE" "$app/Contents/Resources/Sparkle-LICENSE.txt"
-xcrun clang -Wall -Wextra -Werror -fobjc-arc -framework Foundation -framework Photos \
+xcrun clang -target "$target" -Wall -Wextra -Werror -fobjc-arc -framework Foundation -framework Photos \
   "$source_dir/Sources/Agent/LibraryHelper.m" -o "$app/Contents/MacOS/FotoBudgetCacheHelper"
-xcrun swiftc -swift-version 6 -warnings-as-errors \
+xcrun swiftc -target "$target" -swift-version 6 -warnings-as-errors \
   -framework AppKit -framework SwiftUI -framework ServiceManagement -framework UniformTypeIdentifiers \
   -F "$sparkle_dir" -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
   "$source_dir/Sources/Agent/CacheClient.swift" "$source_dir/Sources/Shared/ControlProtocol.swift" \
@@ -36,7 +37,7 @@ xcrun swiftc -swift-version 6 -warnings-as-errors \
   "$source_dir/Sources/Agent/AppUpdates.swift" \
   "$source_dir/Sources/Agent/Agent.swift" "$source_dir/Sources/Agent/main.swift" \
   -o "$app/Contents/MacOS/PhotosStorage"
-xcrun clang -Wall -Wextra -Werror -fobjc-arc -bundle -framework Cocoa -framework PreferencePanes \
+xcrun clang -target "$target" -Wall -Wextra -Werror -fobjc-arc -bundle -framework Cocoa -framework PreferencePanes \
   "$source_dir/Sources/Pane/PhotosStoragePane.m" -o "$pane/Contents/MacOS/PhotosStoragePane"
 codesign "${sign_options[@]}" --identifier nl.emieljanson.FotoBudget.CacheHelper "$app/Contents/MacOS/FotoBudgetCacheHelper"
 codesign "${sign_options[@]}" "$pane"

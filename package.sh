@@ -18,7 +18,7 @@ Photos Storage
 Your controls live in System Settings > Photos Storage.
 Opening the app again takes you back there. No menu bar icon is added.
 
-Experimental preview: cleanup supports only macOS 27.2, build 26B123.
+Requires Apple silicon, macOS 13 or later, iCloud Photos, and Optimize Mac Storage.
 The storage setting is a target, not a hard quota.
 TEXT
 image="$output_dir/Photos Storage.dmg"

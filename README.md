@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <sub>Experimental preview · macOS 27.2, build 26B123</sub>
+  <sub>Apple silicon · macOS 13 or later</sub>
 </p>
 
 <p align="center">
@@ -43,8 +43,8 @@ are included. Opening the app later takes you back to its settings.
 ## Compatibility
 
 Requires an **Apple silicon Mac**, **iCloud Photos**, and **Optimize Mac Storage**.
-This experimental preview uses private macOS interfaces and is currently verified
-only on **macOS 27.2, build 26B123**. Other builds pause cleanup.
+Supports **macOS 13 and later**. Photos Storage checks that the required Photos
+features are available before changing settings or freeing local copies.
 
 Photos Storage asks macOS to release eligible local copies. It does not delete
 items from your Photos library. macOS decides what can be freed, and Photos
