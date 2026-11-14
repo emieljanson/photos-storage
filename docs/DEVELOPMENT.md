@@ -37,6 +37,10 @@ scripts. Installed files are:
 - `~/Applications/Photos Storage.app` — the background agent
 - `~/Library/PreferencePanes/PhotosStorage.prefPane` — the settings pane
 
+The development `install.sh` script saves previous installed bundles under
+`~/Library/Application Support/FotoBudget/install-backup.*`. These copies are
+for manual recovery; the downloaded app does not provide this backup feature.
+
 The build downloads the pinned Sparkle 2.10.1 SDK from its official release and
 checks its SHA-256 digest. Sparkle's license is included inside the app.
 

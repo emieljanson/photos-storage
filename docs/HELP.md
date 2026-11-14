@@ -59,7 +59,8 @@ check. The current preview receives updates from this repository's public feed.
 To relax the app's last prefetch budget first, choose **Custom…** and enter
 the largest allowed target while iCloud optimization is still enabled. Then
 turn off **Optimize storage** and **Options… → Start at login**.
-Stop **PhotosStorage** in Activity Monitor,
-quit System Settings, and remove the two installed bundles listed above.
-The installer retains previous installed versions under the app's private
-application-support directory for local rollback.
+Stop **PhotosStorage** in Activity Monitor and quit System Settings. Then remove:
+
+- **Photos Storage.app** from Applications (`/Applications/Photos Storage.app`,
+  or `~/Applications/Photos Storage.app` if installed for your account).
+- `~/Library/PreferencePanes/PhotosStorage.prefPane`.
