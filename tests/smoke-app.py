@@ -1,4 +1,4 @@
-"""Launch the real app on a clean hosted runner, with no photo library or permissions."""
+"""Launch the real app on a clean hosted runner, with optimization explicitly off."""
 
 import json
 import os
@@ -13,15 +13,16 @@ if os.environ.get("GITHUB_ACTIONS") != "true":
 app = Path(sys.argv[1]).resolve()
 state_file = Path.home() / "Library/Application Support/FotoBudget/control/state.json"
 preferences = Path.home() / "Library/Preferences/nl.emieljanson.FotoBudget.plist"
-if state_file.exists() or preferences.exists() or list((Path.home() / "Pictures").glob("*.photoslibrary")):
-    raise SystemExit("Expected a fresh account with no Photos Storage state or photo library.")
+occupied = [str(path) for path in [state_file, preferences] if path.exists()]
+if occupied:
+    raise SystemExit(f"Expected no existing Photos Storage state: {occupied}")
 
 capabilities = json.loads(subprocess.check_output(
     [app / "Contents/MacOS/FotoBudgetCacheHelper", "--capabilities"], timeout=110))
 assert capabilities["ok"], capabilities
 print(json.dumps(capabilities), flush=True)
 
-process = subprocess.Popen([app / "Contents/MacOS/PhotosStorage", "--background"])
+process = subprocess.Popen([app / "Contents/MacOS/PhotosStorage", "--background", "-automatic", "NO"])
 try:
     deadline = time.monotonic() + 40
     while time.monotonic() < deadline:

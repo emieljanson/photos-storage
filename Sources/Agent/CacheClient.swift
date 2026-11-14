@@ -67,11 +67,23 @@ func nativePreferenceDomain() -> String {
     FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Containers/com.apple.photolibraryd/Data/Library/Preferences/com.apple.photolibraryd").path
 }
 
+func nativePrefetchValue(commandOutput: Data?, preferencesData: Data?) -> Int? {
+    if let commandOutput {
+        guard let text = String(data: commandOutput, encoding: .utf8),
+              let value = Int(text.trimmingCharacters(in: .whitespacesAndNewlines)),
+              (0...1024).contains(value) else { return nil }
+        return value
+    }
+    guard let preferencesData,
+          let values = try? PropertyListSerialization.propertyList(from: preferencesData, format: nil) as? [String: Any],
+          values["PLPrefetchMinimumFreeDiskGB"] == nil else { return nil }
+    return 0
+}
+
 func readNativePrefetch() -> Int? {
-    guard let data = runPreferenceCommand(["read", nativePreferenceDomain(), "PLPrefetchMinimumFreeDiskGB"]),
-          let text = String(data: data, encoding: .utf8),
-          let value = Int(text.trimmingCharacters(in: .whitespacesAndNewlines)), (0...1024).contains(value) else { return nil }
-    return value
+    let output = runPreferenceCommand(["read", nativePreferenceDomain(), "PLPrefetchMinimumFreeDiskGB"])
+    let preferences = output == nil ? try? Data(contentsOf: URL(fileURLWithPath: nativePreferenceDomain() + ".plist")) : nil
+    return nativePrefetchValue(commandOutput: output, preferencesData: preferences)
 }
 
 struct NativeProfileResult: Sendable {

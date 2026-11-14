@@ -48,6 +48,19 @@ expect(Date().timeIntervalSince(hungStarted) < 4, "An unresponsive helper must n
 let missing = runCacheProcess(path: fixtures.appendingPathComponent("missing").path, arguments: [], timeout: 1)
 expect(missing.failed && missing.failureCode == "helper_launch_failed", "A missing helper must report launch failure")
 
+let emptyPreferences = try PropertyListSerialization.data(fromPropertyList: [String: Int](), format: .binary, options: 0)
+let malformedPreferences = try PropertyListSerialization.data(fromPropertyList: ["PLPrefetchMinimumFreeDiskGB": "invalid"], format: .binary, options: 0)
+expect(nativePrefetchValue(commandOutput: nil, preferencesData: emptyPreferences) == 0,
+       "A readable settings file without an override uses Photos' default budget")
+expect(nativePrefetchValue(commandOutput: nil, preferencesData: nil) == nil,
+       "Missing permission must not be mistaken for a missing override")
+expect(nativePrefetchValue(commandOutput: nil, preferencesData: malformedPreferences) == nil,
+       "An unreadable override must not be replaced with a default")
+expect(nativePrefetchValue(commandOutput: Data("37\n".utf8), preferencesData: nil) == 37,
+       "An existing prefetch override must retain its exact value")
+expect(nativePrefetchValue(commandOutput: Data("2048\n".utf8), preferencesData: emptyPreferences) == nil,
+       "An out-of-range existing override must block changes")
+
 let controller = FailureHarness()
 controller.defaults.set(true, forKey: "automatic")
 controller.stopOnError(timeout.failureCode)

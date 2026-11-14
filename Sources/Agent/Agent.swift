@@ -48,7 +48,7 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
             NSApp.terminate(nil)
             return
         }
-        defaults.register(defaults: ["limitGB": 30.0, "automatic": false, "nativeLastReserveGiB": 13])
+        defaults.register(defaults: ["limitGB": 30.0, "automatic": false])
         defaults.set(limitGB.isFinite ? min(100_000, max(20, limitGB)) : 30, forKey: "limitGB")
         restorePrefetchAccess()
         restoreLibraryAccess()
@@ -560,7 +560,8 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
                     self.defaults.set(actual, forKey: "nativeLastReserveGiB")
                     self.defaults.removeObject(forKey: "pendingNativeReserveGiB")
                 }
-                let expected = self.defaults.integer(forKey: "nativeLastReserveGiB")
+                let expected = self.defaults.object(forKey: "nativeLastReserveGiB") == nil
+                    ? actual : self.defaults.integer(forKey: "nativeLastReserveGiB")
                 guard actual == expected else {
                     self.stopOnError("native_profile_conflict")
                     return
