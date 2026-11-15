@@ -37,6 +37,20 @@ int main(void) {
             write(library,@"resources/cpl/cloudsync.noindex/syncstatus.plist",@{@"iCloudLibraryExists":@YES});
             write(library,marker,NSData.data);
             if (!check(YES)) return 1;
+            NSArray *cplEnabled=@[@{@"type":@"CPL",@"timestamp":date,@"enabled":@YES}];
+            write(library,account,cplEnabled); write(library,daemon,cplEnabled);
+            if (!check(YES)) { fprintf(stderr,"CPL enable logs must be recognized.\n"); return 16; }
+            write(library,local,@{@"Library":@{@"CPL":@{}}}); if(!check(NO))return 17;
+            write(library,local,@{@"Library":@{@"CPL":@{@"PrefetchMode":@0}}});
+            write(library,account,enabled); if(!check(YES))return 18;
+            NSDate *later=[date dateByAddingTimeInterval:1];
+            write(library,account,[enabled arrayByAddingObject:@{@"type":@"CPL",@"timestamp":later,@"enabled":@NO}]); if(!check(NO))return 19;
+            write(library,account,[cplEnabled arrayByAddingObject:@{@"type":@"iCPL",@"timestamp":later,@"enabled":@NO}]); if(!check(NO))return 20;
+            write(library,account,[enabled arrayByAddingObject:@{@"type":@"CPL",@"timestamp":date,@"enabled":@NO}]); if(!check(NO))return 21;
+            write(library,account,cplEnabled);
+            write(library,daemon,[cplEnabled arrayByAddingObject:@{@"type":@"CPL",@"timestamp":later,@"enabled":@NO}]); if(!check(NO))return 22;
+            write(library,daemon,@[@{@"type":@"CPL",@"timestamp":date,@"enabled":@"true"}]); if(!check(NO))return 23;
+            write(library,account,enabled); write(library,daemon,enabled);
             write(library,local,@{@"Library":@{@"CPL":@{@"PrefetchMode":@1}}}); if(!check(NO))return 2;
             write(library,local,@{@"Library":@{@"CPL":@{}}}); if(!check(NO))return 3;
             write(library,local,@{@"Library":@{@"CPL":@{@"PrefetchMode":@"0"}}}); if(!check(NO))return 4;

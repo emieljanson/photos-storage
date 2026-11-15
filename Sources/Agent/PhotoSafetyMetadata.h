@@ -66,7 +66,7 @@ static NSNumber *PhotoLatestCloudEnablement(id log) {
     NSDate *latest=nil; NSNumber *enabled=nil;
     for (id entry in log) {
         if (![entry isKindOfClass:NSDictionary.class]) return nil;
-        if (![entry[@"type"] isEqual:@"iCPL"]) continue;
+        if (![entry[@"type"] isEqual:@"iCPL"] && ![entry[@"type"] isEqual:@"CPL"]) continue;
         NSDate *date=entry[@"timestamp"]; id flag=entry[@"enabled"];
         if (![date isKindOfClass:NSDate.class] || date.timeIntervalSinceNow>60 || !PhotoIsBoolean(flag)) return nil;
         if (!latest || [date compare:latest]==NSOrderedDescending) { latest=date; enabled=flag; }

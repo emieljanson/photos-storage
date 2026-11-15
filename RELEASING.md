@@ -25,6 +25,17 @@ Never export signing secrets into this repository.
    using the existing Xcode account. Upload success alone does not prove Apple
    has accepted the app. Updated Apple agreements must be accepted by the
    account holder before Apple permits submission.
+
+   If the command reports `No Accounts` while Xcode shows the account and team,
+   open the archive in Xcode and use **Distribute App → Direct Distribution**
+   before requesting a new sign-in. This route succeeded when the CLI could not
+   load its stored account credentials.
+
+   Xcode imports the archive into `~/Library/Developer/Xcode/Archives/`. Verify
+   its bundled executables match the intended build, preserve the original
+   archive, and copy the uploaded archive back as `PhotosStorage.xcarchive` in
+   the build directory. Its distribution metadata is required for the next
+   step; the original, unsubmitted archive cannot export the notarized app.
 5. After Apple's processing completes, run `zsh release.sh package`. If the
    notarized export is not ready, wait and retry this step without rebuilding
    or resubmitting. It exports the exact app Xcode submitted, checks its
@@ -34,14 +45,33 @@ Never export signing secrets into this repository.
    The private update key stays in Keychain. Do not edit a signed appcast;
    regenerate it with Sparkle's `generate_appcast` if anything changes.
 7. Create a GitHub draft release for the exact source commit. Upload the ZIP
-   and `SHA256SUMS.txt` with `gh release upload`. Publish the release, then copy
-   its generated appcast to the repository root and push it to `main`.
+   and `SHA256SUMS.txt` with `gh release upload`. Download the assets from the
+   draft into a new directory using `gh release download` and verify their
+   checksum, app signature, and stapled notarization ticket before publishing.
+   After publication, verify the public download and update the links in
+   `README.md` and `docs/HELP.md`. Leave the repository-root `appcast.xml`
+   unchanged until existing installations should receive this version.
+8. When ready to offer the update, copy the verified generated appcast to the
+   repository root and push it to `main`.
    Keep old feed entries when preparing future releases. The release script
    copies the current feed before generating new entries.
-8. Fetch the public asset and feed, verify their signatures and checksum, and
+   Fetch the public asset and feed, verify their signatures and checksum, and
    test **Check for Updates…** from the previous signed installation. Check
    the installed version, background relaunch, retained permissions, and
    settings-pane refresh after System Settings closes.
+
+## Publish the download before offering an update
+
+To make a verified release available to new downloads first, publish its GitHub
+release and update the download links in `README.md` and `docs/HELP.md`. Keep
+the repository-root `appcast.xml` unchanged until existing installations should
+receive the update. The app reads that feed, independently of GitHub's latest
+release and the download links.
+
+Use a new marketing version and build number for this release as usual. Keep
+older release assets available because the live feed still references them.
+When ready to offer the update, publish the verified generated appcast from
+this release, preserving its existing entries and signatures.
 
 Only call the release ready once these checks pass. Keep a failed release in
 draft and leave the live feed pointing at the previous verified version.

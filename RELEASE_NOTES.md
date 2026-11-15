@@ -1,18 +1,15 @@
-# Photos Storage 0.4.1
+# Photos Storage 0.4.2
 
 For Apple silicon Macs running **macOS 13 or later**.
 Runtime checks pass on macOS 15, 26, and 27. macOS 13 and 14 have not been
 runtime-tested.
 
-- Builds for older macOS versions, including the app, helper, and System Settings pane.
-- Checks the installed Photos features and the meaning of its optimization setting instead of requiring one exact macOS build.
-- Bounds background helper checks so a stalled process cannot leave monitoring busy indefinitely.
-- Handles first use when Photos has not yet stored a prefetch override.
-- Shows an unsupported Photos version directly, without sending users to unrelated iCloud settings.
+- Fixes setup verification for Photos libraries that record iCloud enablement as `CPL` instead of `iCPL`.
+- Explains where to check iCloud Photos and select Optimize Mac Storage when settings cannot be verified.
 
 Existing iCloud Photos and Optimize Mac Storage checks remain in place;
-unverifiable settings stop cleanup. Photos
-Storage asks macOS to release eligible local copies; it does not delete items
+unverifiable or missing settings stop cleanup. Photos Storage asks macOS to
+release eligible local copies; it does not delete items
 from your photo library. The storage target is approximate.
 
 The app is Developer ID signed and notarized by Apple, with signed automatic
