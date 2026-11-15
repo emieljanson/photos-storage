@@ -220,7 +220,7 @@ static NSString *const agentIdentifier = @"nl.emieljanson.FotoBudget";
         [self setting:@"Automatic updates" control:self.updates],
         [self setting:@"Photos Storage" control:self.checkUpdates],
         [self setting:@"Last checked" control:self.checked],
-        [self setting:@"iCloud Drive" control:self.cloudDownloads]
+        [self setting:@"iCloud Downloads" control:self.cloudDownloads]
     ]];
     self.loginMessage = [self label:@"" secondary:YES];
     self.loginMessage.hidden = YES;

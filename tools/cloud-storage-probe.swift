@@ -1,5 +1,73 @@
 import Foundation
 import CryptoKit
+import Darwin
+
+private let testByteCount = 4 * 1024 * 1024
+private let testEdit = Data("unsynced edit safety check".utf8)
+private let localOnlyContents = "A generated local-only safety fixture. Not personal data."
+
+private struct GeneratedFixture: Codable {
+    let folderPath: String
+    let originalSHA256: String
+    let editedSHA256: String
+}
+
+private func fixtureMarkerURL(_ id: UUID) throws -> URL {
+    guard let cache = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+        throw CocoaError(.fileReadNoSuchFile)
+    }
+    return cache.appendingPathComponent("PhotosStorage/CloudStorageProbeFixtures", isDirectory: true)
+        .appendingPathComponent(id.uuidString + ".json")
+}
+
+private func ownedRegularFile(_ url: URL, maximumBytes: Int64) throws -> stat {
+    var info = stat()
+    guard url.resolvingSymlinksInPath().path == url.standardizedFileURL.path,
+          lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG,
+          info.st_uid == getuid(), info.st_nlink == 1,
+          info.st_size >= 0, info.st_size <= maximumBytes else {
+        throw CocoaError(.fileReadNoPermission)
+    }
+    return info
+}
+
+private func verifiedFixture(folder: URL, prefixHash: String) throws -> GeneratedFixture {
+    let prefix = "Photos Storage Test-"
+    var folderInfo = stat()
+    guard folder.lastPathComponent.hasPrefix(prefix),
+          let id = UUID(uuidString: String(folder.lastPathComponent.dropFirst(prefix.count))),
+          folder.lastPathComponent == prefix + id.uuidString,
+          lstat(folder.path, &folderInfo) == 0, folderInfo.st_mode & S_IFMT == S_IFDIR,
+          folderInfo.st_uid == getuid(),
+          folder.resolvingSymlinksInPath().path == folder.standardizedFileURL.path else {
+        throw NSError(domain: "PhotosStorage.Research", code: 8)
+    }
+    let markerURL = try fixtureMarkerURL(id)
+    _ = try ownedRegularFile(markerURL, maximumBytes: 8192)
+    let marker = try JSONDecoder().decode(GeneratedFixture.self, from: Data(contentsOf: markerURL))
+    guard marker.folderPath == folder.standardizedFileURL.path,
+          marker.originalSHA256 == prefixHash, prefixHash.count == 64,
+          prefixHash.allSatisfy({ "0123456789abcdef".contains($0) }),
+          marker.editedSHA256.count == 64,
+          marker.editedSHA256.allSatisfy({ "0123456789abcdef".contains($0) }) else {
+        throw NSError(domain: "PhotosStorage.Research", code: 8)
+    }
+    let names = Set(try FileManager.default.contentsOfDirectory(atPath: folder.path))
+    guard names.isSubset(of: ["generated-test-data.bin", "local-only.nosync", ".DS_Store"]) else {
+        throw NSError(domain: "PhotosStorage.Research", code: 8)
+    }
+    let localOnly = folder.appendingPathComponent("local-only.nosync")
+    _ = try ownedRegularFile(localOnly, maximumBytes: 1024)
+    guard try String(contentsOf: localOnly, encoding: .utf8) == localOnlyContents else {
+        throw NSError(domain: "PhotosStorage.Research", code: 10)
+    }
+    let info = try ownedRegularFile(folder.appendingPathComponent("generated-test-data.bin"),
+                                    maximumBytes: Int64(testByteCount + testEdit.count))
+    guard info.st_size == testByteCount + testEdit.count else {
+        throw NSError(domain: "PhotosStorage.Research", code: 8)
+    }
+    return marker
+}
 
 // Research only. Round trips use newly generated data, never existing documents.
 let keys: Set<URLResourceKey> = [
@@ -47,11 +115,12 @@ func roundTrip(in root: URL, rounds: Int) throws {
     guard manager.fileExists(atPath: root.path) else {
         throw NSError(domain: "PhotosStorage.Research", code: 2)
     }
-    let folder = root.appendingPathComponent("Photos Storage Test-" + UUID().uuidString, isDirectory: true)
+    let id = UUID()
+    let folder = root.appendingPathComponent("Photos Storage Test-" + id.uuidString, isDirectory: true)
     try manager.createDirectory(at: folder, withIntermediateDirectories: false)
     emit(["event": "created_test_folder", "path": folder.path])
     var generator = SystemRandomNumberGenerator()
-    var data = Data(count: 4 * 1024 * 1024)
+    var data = Data(count: testByteCount)
     data.withUnsafeMutableBytes { (bytes: UnsafeMutableRawBufferPointer) in
         for offset in stride(from: 0, to: bytes.count, by: 8) {
             bytes.storeBytes(of: generator.next(), toByteOffset: offset, as: UInt64.self)
@@ -60,6 +129,16 @@ func roundTrip(in root: URL, rounds: Int) throws {
     let expectedHash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     let url = folder.appendingPathComponent("generated-test-data.bin")
     try data.write(to: url, options: .withoutOverwriting)
+    try Data(localOnlyContents.utf8).write(to: folder.appendingPathComponent("local-only.nosync"), options: .withoutOverwriting)
+    let modified = data + testEdit
+    let marker = GeneratedFixture(folderPath: folder.resolvingSymlinksInPath().path,
+                                  originalSHA256: expectedHash,
+                                  editedSHA256: SHA256.hash(data: modified).map { String(format: "%02x", $0) }.joined())
+    let markerURL = try fixtureMarkerURL(id)
+    try manager.createDirectory(at: markerURL.deletingLastPathComponent(), withIntermediateDirectories: true,
+                                attributes: [.posixPermissions: 0o700])
+    try JSONEncoder().encode(marker).write(to: markerURL, options: .withoutOverwriting)
+    try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: markerURL.path)
     emit(["event": "generated", "bytes": data.count, "sha256": expectedHash])
     emit(["event": "fresh_file_guard", "decision": try inspectCloudFile(url).decision.rawValue])
     for round in 1...rounds {
@@ -86,7 +165,7 @@ func roundTrip(in root: URL, rounds: Int) throws {
         }
         emit(["event": "changed_identity_refused", "round": round])
         let released = try releaseCloudDownload(url, expectedIdentity: identity)
-        guard released.error == nil, released.reducedBytes == data.count else {
+        guard released.error == nil, released.reducedBytes == reviewed.allocatedBytes else {
             throw NSError(domain: "PhotosStorage.Research", code: 6,
                           userInfo: [NSLocalizedDescriptionKey: released.error ?? "Unexpected released size"])
         }
@@ -110,7 +189,6 @@ func roundTrip(in root: URL, rounds: Int) throws {
               "sha256": restoredHash, "metadata": try snapshot(url)])
     }
     let oldIdentity = try cloudFileIdentity(url)
-    let modified = data + Data("unsynced edit safety check".utf8)
     try modified.write(to: url)
     let refused = try releaseCloudDownload(url, expectedIdentity: oldIdentity)
     guard refused.error != nil, refused.reducedBytes == 0, try Data(contentsOf: url) == modified else {
@@ -121,21 +199,21 @@ func roundTrip(in root: URL, rounds: Int) throws {
 }
 
 func verifyRestoredTest(folder: URL, prefixHash: String) throws {
-    guard folder.lastPathComponent.hasPrefix("Photos Storage Test-"), prefixHash.count == 64 else {
-        throw NSError(domain: "PhotosStorage.Research", code: 8)
-    }
+    let marker = try verifiedFixture(folder: folder, prefixHash: prefixHash)
     let url = folder.appendingPathComponent("generated-test-data.bin")
     try FileManager.default.startDownloadingUbiquitousItem(at: url)
     try waitUntil("test download") {
         try URL(fileURLWithPath: url.path).resourceValues(forKeys: keys).ubiquitousItemDownloadingStatus == .current
     }
     let data = try Data(contentsOf: url)
-    let digest = SHA256.hash(data: data.prefix(4 * 1024 * 1024)).map { String(format: "%02x", $0) }.joined()
-    guard digest == prefixHash, data.suffix(26) == Data("unsynced edit safety check".utf8) else {
+    let digest = SHA256.hash(data: data.prefix(testByteCount)).map { String(format: "%02x", $0) }.joined()
+    let editedHash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    guard digest == prefixHash, data.count == testByteCount + testEdit.count,
+          data.suffix(testEdit.count) == testEdit, editedHash == marker.editedSHA256 else {
         throw NSError(domain: "PhotosStorage.Research", code: 9)
     }
     guard try String(contentsOf: folder.appendingPathComponent("local-only.nosync"), encoding: .utf8) ==
-        "A generated local-only safety fixture. Not personal data." else {
+        localOnlyContents else {
         throw NSError(domain: "PhotosStorage.Research", code: 10)
     }
     emit(["event": "ui_round_trip_verified", "bytes": data.count, "prefix_sha256": digest,

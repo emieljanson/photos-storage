@@ -1,6 +1,16 @@
 import AppKit
 import SwiftUI
 
+enum CloudDownloadLocation {
+    case drive, books
+
+    var directoryURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(
+            self == .drive ? "Library/Mobile Documents/com~apple~CloudDocs" :
+                "Library/Mobile Documents/iCloud~com~apple~iBooks/Documents")
+    }
+}
+
 @MainActor
 final class CloudDownloadsModel: ObservableObject {
     struct Row: Identifiable {
@@ -18,18 +28,18 @@ final class CloudDownloadsModel: ObservableObject {
     var didFinish: (() -> Void)?
     var ready: [Row] { rows.filter { $0.snapshot?.decision == .ready && $0.snapshot?.identity != nil } }
 
-    func chooseFiles(window: NSWindow?) {
+    func chooseFiles(window: NSWindow?, in location: CloudDownloadLocation) {
         guard !busy, let window else { return }
         let panel = NSOpenPanel()
-        panel.title = "Choose iCloud Downloads"
-        panel.message = "Choose individual files in iCloud Drive. Their upload status is checked before any downloads are removed."
+        panel.title = location == .drive ? "Choose iCloud Drive Files" : "Choose Books"
+        panel.message = "Choose downloads to review. Their iCloud upload is checked before any local copies are removed."
         panel.prompt = "Review Downloads"
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
+        panel.treatsFilePackagesAsDirectories = false
         panel.allowsMultipleSelection = true
         panel.resolvesAliases = false
-        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs")
+        panel.directoryURL = location.directoryURL
         panel.beginSheetModal(for: window) { [weak self] response in
             guard response == .OK else { return }
             self?.inspect(panel.urls)
@@ -97,17 +107,17 @@ final class CloudDownloadsModel: ObservableObject {
 
 private struct CloudDownloadsView: View {
     @ObservedObject var model: CloudDownloadsModel
-    let choose: () -> Void
+    let choose: (CloudDownloadLocation) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("iCloud Downloads").font(.title2).fontWeight(.semibold)
-            Text("Free local copies of files you choose. Files stay in iCloud and download again when opened.")
+            Text("Remove local downloads to free space. Files stay in iCloud and download again when opened.")
                 .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if model.rows.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "icloud").font(.system(size: 28)).foregroundStyle(.secondary)
-                    Text("Choose files to review their local downloads.").foregroundStyle(.secondary)
+                    Text("Choose iCloud Drive files or books to review.").foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -133,7 +143,13 @@ private struct CloudDownloadsView: View {
                 Text(summary).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             HStack {
-                Button("Choose Files…", action: choose).disabled(model.busy)
+                Menu("Choose Files…") {
+                    Button("iCloud Drive…") { choose(.drive) }
+                    Button("Books…") { choose(.books) }
+                }
+                .menuStyle(.borderedButton)
+                .fixedSize()
+                .disabled(model.busy)
                 Spacer()
                 if model.busy { ProgressView().controlSize(.small).accessibilityLabel("Checking iCloud downloads") }
                 Button("Remove Downloads") { model.removeDownloads() }
@@ -148,6 +164,7 @@ private struct CloudDownloadsView: View {
 @MainActor
 final class CloudDownloadsWindowController: NSWindowController, NSWindowDelegate {
     let model = CloudDownloadsModel()
+    var didClose: (() -> Void)?
 
     init() {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 540, height: 420),
@@ -157,8 +174,8 @@ final class CloudDownloadsWindowController: NSWindowController, NSWindowDelegate
         window.isReleasedWhenClosed = false
         super.init(window: window)
         window.delegate = self
-        window.contentView = NSHostingView(rootView: CloudDownloadsView(model: model, choose: { [weak self] in
-            self?.model.chooseFiles(window: self?.window)
+        window.contentView = NSHostingView(rootView: CloudDownloadsView(model: model, choose: { [weak self] location in
+            self?.model.chooseFiles(window: self?.window, in: location)
         }))
         window.center()
     }
@@ -171,5 +188,8 @@ final class CloudDownloadsWindowController: NSWindowController, NSWindowDelegate
         window?.makeKeyAndOrderFront(nil)
     }
 
-    func windowWillClose(_ notification: Notification) { model.cancelRemaining() }
+    func windowWillClose(_ notification: Notification) {
+        model.cancelRemaining()
+        Task { @MainActor [weak self] in self?.didClose?() }
+    }
 }

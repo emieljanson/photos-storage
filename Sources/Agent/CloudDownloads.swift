@@ -1,5 +1,6 @@
 import Foundation
 import Darwin
+import CryptoKit
 
 enum CloudFileDecision: String, Codable, Sendable {
     case ready, cloudOnly, notDocument, notCloud, unconfirmed, syncing, conflict, changed
@@ -29,18 +30,32 @@ struct CloudFileFacts {
     var excluded: Bool?
     var current: Bool?
     var downloaded: Bool?
+    var bookPackage = false
+    var dataless: Bool?
     var allocatedBytes: Int64 = 0
     var hasError = false
 
-    var decision: CloudFileDecision {
-        guard regularFile == true, package == false else { return .notDocument }
+    var preflightDecision: CloudFileDecision? {
+        if bookPackage {
+            guard regularFile == false, package == true else { return .notDocument }
+        } else {
+            guard regularFile == true, package == false else { return .notDocument }
+        }
         guard ubiquitous == true, excluded == false else { return .notCloud }
         guard uploaded == true, !hasError, conflicts != nil else { return .unconfirmed }
         guard conflicts == false else { return .conflict }
-        guard uploading == false, downloading == false else { return .syncing }
-        if downloaded == false, allocatedBytes == 0 { return .cloudOnly }
-        guard current == true, allocatedBytes > 0 else { return .unconfirmed }
-        return .ready
+        guard let uploading, let downloading else { return .unconfirmed }
+        guard !uploading, !downloading else { return .syncing }
+        if downloaded == false {
+            guard allocatedBytes == 0, !bookPackage || dataless == true else { return .unconfirmed }
+            return .cloudOnly
+        }
+        guard downloaded == true, current == true, !bookPackage || dataless == false else { return .unconfirmed }
+        return nil
+    }
+
+    var decision: CloudFileDecision {
+        preflightDecision ?? (allocatedBytes > 0 ? .ready : .unconfirmed)
     }
 }
 
@@ -59,7 +74,7 @@ struct CloudFileResult: Codable, Sendable {
 }
 
 private let cloudFileKeys: Set<URLResourceKey> = [
-    .isRegularFileKey, .isPackageKey, .isUbiquitousItemKey,
+    .isRegularFileKey, .isDirectoryKey, .isPackageKey, .isUbiquitousItemKey,
     .ubiquitousItemIsUploadedKey, .ubiquitousItemIsUploadingKey,
     .ubiquitousItemIsDownloadingKey, .ubiquitousItemHasUnresolvedConflictsKey,
     .ubiquitousItemIsExcludedFromSyncKey, .ubiquitousItemDownloadingStatusKey,
@@ -67,17 +82,106 @@ private let cloudFileKeys: Set<URLResourceKey> = [
     .totalFileAllocatedSizeKey
 ]
 
-func cloudFileIdentity(_ url: URL) throws -> String {
+private let protectedCloudExtensions: Set<String> = ["photoslibrary", "photolibrary", "musiclibrary", "tvlibrary", "sparsebundle", "sparseimage"]
+
+let booksCloudDocuments = FileManager.default.homeDirectoryForCurrentUser
+    .appendingPathComponent("Library/Mobile Documents/iCloud~com~apple~iBooks/Documents")
+
+func isBooksEPUBLocation(_ url: URL) -> Bool {
+    url.isFileURL && url.pathExtension.lowercased() == "epub" &&
+        url.deletingLastPathComponent().path == booksCloudDocuments.path
+}
+
+private func cloudItemInfo(_ url: URL) throws -> stat {
     var info = stat()
-    guard lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG,
-          info.st_nlink == 1, info.st_uid == getuid() else { throw CocoaError(.fileReadNoPermission) }
+    guard lstat(url.path, &info) == 0 else {
+        switch errno {
+        case ENOENT, ENOTDIR: throw CocoaError(.fileReadNoSuchFile)
+        case EACCES, EPERM: throw CocoaError(.fileReadNoPermission)
+        default: throw CocoaError(.fileReadUnknown)
+        }
+    }
+    return info
+}
+
+private func cloudStatIdentity(_ info: stat) -> String {
     return "\(info.st_dev):\(info.st_ino):\(info.st_size):\(info.st_mtimespec.tv_sec):\(info.st_mtimespec.tv_nsec):\(info.st_ctimespec.tv_sec):\(info.st_ctimespec.tv_nsec)"
+}
+
+struct BookPackageContents {
+    let allocatedBytes: Int64
+    let identity: String
+}
+
+// Inspect only materialized packages. Enumerating a dataless EPUB downloads it.
+func bookPackageContents(_ root: URL) throws -> BookPackageContents {
+    let rootInfo = try cloudItemInfo(root)
+    guard rootInfo.st_mode & S_IFMT == S_IFDIR, rootInfo.st_uid == getuid(),
+          rootInfo.st_flags & UInt32(SF_DATALESS) == 0 else { throw CocoaError(.fileReadNoPermission) }
+    var pending = [root]
+    var visited: [(url: URL, stamp: String)] = []
+    var allocatedBytes: Int64 = 0
+    func stamp(_ info: stat) -> String {
+        "\(cloudStatIdentity(info)):\(info.st_mode):\(info.st_uid):\(info.st_nlink):\(info.st_flags):\(info.st_blocks)"
+    }
+    while let url = pending.popLast() {
+        guard visited.count < 10_000, url.pathComponents.count - root.pathComponents.count <= 64 else {
+            throw CocoaError(.fileReadTooLarge)
+        }
+        let info = try cloudItemInfo(url)
+        guard info.st_uid == getuid(), info.st_dev == rootInfo.st_dev,
+              info.st_flags & UInt32(SF_DATALESS) == 0,
+              [S_IFREG, S_IFDIR].contains(info.st_mode & S_IFMT) else { throw CocoaError(.fileReadNoPermission) }
+        if url != root {
+            guard !protectedCloudExtensions.contains(url.pathExtension.lowercased()),
+                  try url.resourceValues(forKeys: [.isPackageKey]).isPackage == false else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+        }
+        switch info.st_mode & S_IFMT {
+        case S_IFREG:
+            guard info.st_nlink == 1, info.st_blocks >= 0 else { throw CocoaError(.fileReadNoPermission) }
+            allocatedBytes += Int64(info.st_blocks) * 512
+        case S_IFDIR:
+            var enumerationError: Error?
+            guard let children = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [],
+                options: [.skipsSubdirectoryDescendants], errorHandler: { _, error in
+                    enumerationError = error
+                    return false
+                }) else { throw CocoaError(.fileReadUnknown) }
+            for case let child as URL in children {
+                guard visited.count + pending.count < 10_000 else { throw CocoaError(.fileReadTooLarge) }
+                pending.append(child)
+            }
+            if let enumerationError { throw enumerationError }
+        default: throw CocoaError(.fileReadNoPermission)
+        }
+        visited.append((url, stamp(info)))
+    }
+    for entry in visited {
+        guard try stamp(cloudItemInfo(entry.url)) == entry.stamp else { throw CocoaError(.fileReadUnknown) }
+    }
+    let records = visited.map { [String($0.url.path.dropFirst(root.path.count)), $0.stamp] }
+        .sorted { $0[0] < $1[0] }
+    let digest = SHA256.hash(data: try JSONEncoder().encode(records)).map { String(format: "%02x", $0) }.joined()
+    return BookPackageContents(allocatedBytes: allocatedBytes, identity: "book:\(digest)")
+}
+
+func cloudFileIdentity(_ url: URL) throws -> String {
+    let info = try cloudItemInfo(url)
+    guard info.st_uid == getuid() else { throw CocoaError(.fileReadNoPermission) }
+    if info.st_mode & S_IFMT == S_IFDIR, isBooksEPUBLocation(url) {
+        let snapshot = try inspectCloudFile(url)
+        guard snapshot.decision == .ready, let identity = snapshot.identity else { throw CocoaError(.fileReadNoPermission) }
+        return identity
+    }
+    guard info.st_mode & S_IFMT == S_IFREG, info.st_nlink == 1 else { throw CocoaError(.fileReadNoPermission) }
+    return cloudStatIdentity(info)
 }
 
 func inspectCloudFile(_ selected: URL) throws -> CloudFileSnapshot {
     let url = URL(fileURLWithPath: selected.path).standardizedFileURL
-    let protectedExtensions: Set<String> = ["photoslibrary", "photolibrary", "musiclibrary", "tvlibrary", "sparsebundle", "sparseimage"]
-    let protectedPath = url.pathComponents.contains { protectedExtensions.contains(($0 as NSString).pathExtension.lowercased()) }
+    let protectedPath = url.pathComponents.contains { protectedCloudExtensions.contains(($0 as NSString).pathExtension.lowercased()) }
     guard selected.isFileURL, url.resolvingSymlinksInPath().path == url.path, !protectedPath else {
         return CloudFileSnapshot(url: url, decision: .notDocument, allocatedBytes: 0, identity: nil)
     }
@@ -88,7 +192,15 @@ func inspectCloudFile(_ selected: URL) throws -> CloudFileSnapshot {
         }
         parent.deleteLastPathComponent()
     }
-    let values = try url.resourceValues(forKeys: cloudFileKeys)
+    let info = try cloudItemInfo(url)
+    let bookLocation = isBooksEPUBLocation(url)
+    guard info.st_uid == getuid(), (info.st_mode & S_IFMT == S_IFREG && info.st_nlink == 1) ||
+            (bookLocation && info.st_mode & S_IFMT == S_IFDIR) else {
+        return CloudFileSnapshot(url: url, decision: .notDocument, allocatedBytes: 0, identity: nil)
+    }
+    let keys = bookLocation && info.st_mode & S_IFMT == S_IFDIR ?
+        cloudFileKeys.subtracting([.totalFileAllocatedSizeKey]) : cloudFileKeys
+    let values = try url.resourceValues(forKeys: keys)
     var facts = CloudFileFacts()
     facts.regularFile = values.isRegularFile
     facts.package = values.isPackage
@@ -102,6 +214,17 @@ func inspectCloudFile(_ selected: URL) throws -> CloudFileSnapshot {
     facts.downloaded = values.ubiquitousItemDownloadingStatus.map { $0 != .notDownloaded }
     facts.hasError = values.ubiquitousItemUploadingError != nil || values.ubiquitousItemDownloadingError != nil
     facts.allocatedBytes = Int64(values.totalFileAllocatedSize ?? 0)
+    facts.bookPackage = bookLocation && values.isDirectory == true && values.isPackage == true
+    if facts.bookPackage {
+        facts.dataless = info.st_flags & UInt32(SF_DATALESS) != 0
+        if let decision = facts.preflightDecision {
+            return CloudFileSnapshot(url: url, decision: decision, allocatedBytes: 0, identity: nil)
+        }
+        let contents = try bookPackageContents(url)
+        facts.allocatedBytes = contents.allocatedBytes
+        return CloudFileSnapshot(url: url, decision: facts.decision, allocatedBytes: facts.allocatedBytes,
+                                 identity: facts.decision == .ready ? contents.identity : nil)
+    }
     let identity = facts.decision == .ready ? try cloudFileIdentity(url) : nil
     return CloudFileSnapshot(url: url, decision: facts.decision, allocatedBytes: facts.allocatedBytes, identity: identity)
 }
@@ -109,11 +232,16 @@ func inspectCloudFile(_ selected: URL) throws -> CloudFileSnapshot {
 func releaseCloudDownload(_ url: URL, expectedIdentity: String) throws -> CloudFileResult {
     let before = try inspectCloudFile(url)
     guard before.decision == .ready else { return CloudFileResult(snapshot: before, error: before.decision.message) }
-    guard before.identity == expectedIdentity, try cloudFileIdentity(url) == expectedIdentity else {
+    guard before.identity == expectedIdentity else {
         return CloudFileResult(snapshot: before, error: CloudFileDecision.changed.message)
     }
-    // This official API releases a local download. Never replace it with file deletion.
-    try FileManager.default.evictUbiquitousItem(at: url)
+    var evictionError: NSError?
+    let outcome = PSEvictReviewedUbiquitousItem(url, { boundURL in
+        guard let current = try? inspectCloudFile(boundURL) else { return false }
+        return current.decision == .ready && current.identity == expectedIdentity
+    }, &evictionError)
+    if outcome == 0 { return CloudFileResult(snapshot: before, error: CloudFileDecision.changed.message) }
+    guard outcome == 1 else { throw evictionError ?? CocoaError(.fileWriteUnknown) }
     let deadline = Date().addingTimeInterval(8)
     repeat {
         let after = try inspectCloudFile(url)
@@ -124,6 +252,19 @@ func releaseCloudDownload(_ url: URL, expectedIdentity: String) throws -> CloudF
     } while Date() < deadline
     return CloudFileResult(snapshot: try inspectCloudFile(url),
                            error: "Requested. macOS has not confirmed the download was removed. Check again later.")
+}
+
+func cloudFileFailureMessage(_ failure: NSError) -> String {
+    if (failure.domain == NSCocoaErrorDomain && failure.code == CocoaError.fileLocking.rawValue) ||
+        (failure.domain == NSPOSIXErrorDomain && failure.code == Int(EBUSY)) {
+        return "This file is in use. Close it in other apps and choose it again."
+    } else if failure.domain == NSCocoaErrorDomain, [CocoaError.fileReadNoPermission.rawValue, CocoaError.fileWriteNoPermission.rawValue].contains(failure.code) {
+        return "Access to this file was denied. Choose it again and allow access."
+    } else if failure.domain == NSCocoaErrorDomain, [CocoaError.fileNoSuchFile.rawValue, CocoaError.fileReadNoSuchFile.rawValue].contains(failure.code) {
+        return "This file moved or is no longer available. Choose it again."
+    } else {
+        return "macOS could not check this iCloud download. Try again later."
+    }
 }
 
 // Same executable, isolated from the agent and its Photos state. Native iCloud calls
@@ -141,14 +282,7 @@ func cloudFileWorkerMain(_ arguments: [String]) -> Never {
             result = try releaseCloudDownload(url, expectedIdentity: arguments[3])
         } else { throw CocoaError(.fileReadInvalidFileName) }
     } catch {
-        let failure = error as NSError
-        if failure.domain == NSCocoaErrorDomain, [CocoaError.fileReadNoPermission.rawValue, CocoaError.fileWriteNoPermission.rawValue].contains(failure.code) {
-            result = CloudFileResult(error: "Access to this file was denied. Choose it again and allow access.")
-        } else if failure.domain == NSCocoaErrorDomain, [CocoaError.fileNoSuchFile.rawValue, CocoaError.fileReadNoSuchFile.rawValue].contains(failure.code) {
-            result = CloudFileResult(error: "This file moved or is no longer available. Choose it again.")
-        } else {
-            result = CloudFileResult(error: "macOS could not check this iCloud download. Try again later.")
-        }
+        result = CloudFileResult(error: cloudFileFailureMessage(error as NSError))
     }
     if let data = try? JSONEncoder().encode(result) { FileHandle.standardOutput.write(data) }
     exit(0)

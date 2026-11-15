@@ -26,7 +26,10 @@ int main(int argc, const char *argv[]) {
     @autoreleasepool {
         alarm(20);
         void *framework = dlopen("/System/Library/PrivateFrameworks/Mail.framework/Mail", RTLD_NOW | RTLD_LOCAL);
-        if (!framework) return 1;
+        if (!framework) {
+            fprintf(stderr, "Unable to load Mail framework: %s\n", dlerror());
+            return 1;
+        }
         NSMutableDictionary *result = NSMutableDictionary.dictionary;
         for (NSString *name in @[@"MFCacheDeleteAttachmentPurger", @"MailDownloadFolderManager", @"MFMailAccount", @"MFIMAPAccount"]) {
             Class cls = NSClassFromString(name);
@@ -34,6 +37,8 @@ int main(int argc, const char *argv[]) {
                              @"class_methods":methodsForClass(object_getClass(cls))};
         }
         if (argc == 2 && !strcmp(argv[1], "--estimate")) {
+            result[@"estimate_valid"] = @NO;
+            result[@"estimate_error"] = @"purger_unverified";
             @try {
                 Class cls = NSClassFromString(@"MFCacheDeleteAttachmentPurger");
                 Method method = class_getInstanceMethod(cls, NSSelectorFromString(@"purgeableBytesAvailable"));
@@ -57,8 +62,13 @@ int main(int argc, const char *argv[]) {
                             [active count] + [inactive count] > 0;
                     }
                     result[@"estimate_valid"] = @(accountsConfirmed);
-                    if (accountsConfirmed) result[@"native_estimate_bytes"] = @(((uint64_t (*)(id, SEL))objc_msgSend)(instance, NSSelectorFromString(@"purgeableBytesAvailable")));
+                    if (accountsConfirmed) {
+                        [result removeObjectForKey:@"estimate_error"];
+                        result[@"native_estimate_bytes"] = @(((uint64_t (*)(id, SEL))objc_msgSend)(instance, NSSelectorFromString(@"purgeableBytesAvailable")));
+                    }
                     else result[@"estimate_error"] = @"mail_accounts_unverified";
+                } else {
+                    result[@"estimate_error_reason"] = @"Missing volume identifier or unsupported native method signatures.";
                 }
             } @catch (NSException *exception) {
                 result[@"estimate_error"] = exception.name;

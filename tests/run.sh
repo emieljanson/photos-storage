@@ -23,10 +23,14 @@ xcrun swiftc -swift-version 6 -warnings-as-errors \
   "$source_dir/../Sources/Agent/SetupSupport.swift" "$build_dir/main.swift" -o "$build_dir/SetupTests"
 "$build_dir/SetupTests"
 cp "$source_dir/CloudDownloadTests.swift" "$build_dir/main.swift"
+xcrun clang -Wall -Wextra -Werror -fobjc-arc -c \
+  "$source_dir/../Sources/Shared/CloudEviction.m" -o "$build_dir/CloudEviction.o"
 xcrun swiftc -swift-version 6 -warnings-as-errors \
+  -import-objc-header "$source_dir/../Sources/Shared/CloudEviction.h" "$build_dir/CloudEviction.o" \
   "$source_dir/../Sources/Agent/CloudDownloads.swift" "$build_dir/main.swift" -o "$build_dir/CloudDownloadTests"
 "$build_dir/CloudDownloadTests"
 xcrun swiftc -parse-as-library -swift-version 6 -warnings-as-errors \
+  -import-objc-header "$source_dir/../Sources/Shared/CloudEviction.h" "$build_dir/CloudEviction.o" \
   "$source_dir/../Sources/Agent/CloudDownloads.swift" \
   "$source_dir/../Sources/Agent/CloudDownloadsWindow.swift" \
   "$source_dir/CloudDownloadsModelTests.swift" -o "$build_dir/CloudDownloadsModelTests"

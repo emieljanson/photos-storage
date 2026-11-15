@@ -12,7 +12,7 @@ struct CloudDownloadsModelTests {
             try? await Task.sleep(for: .milliseconds(10))
         }
         guard !model.busy, model.rows.count == 2,
-              model.rows.allSatisfy({ $0.message != "Checking iCloud…" }),
+              model.rows.allSatisfy({ $0.message == "Not checked. Choose files again." && !$0.pending }),
               model.ready.isEmpty else {
             fputs("FAIL: cancelled checks must stop showing progress and remain ineligible for removal\n", stderr)
             exit(1)

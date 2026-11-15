@@ -272,6 +272,7 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
             if cloudDownloadsController == nil {
                 cloudDownloadsController = CloudDownloadsWindowController()
                 cloudDownloadsController?.model.didFinish = { [weak self] in self?.updates?.resumeInstallationIfIdle() }
+                cloudDownloadsController?.didClose = { [weak self] in self?.updates?.resumeInstallationIfIdle() }
             }
             cloudDownloadsController?.present()
         }
