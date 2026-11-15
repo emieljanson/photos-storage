@@ -485,6 +485,31 @@ This suggests accumulated historical or unindexed draft material. It establishes
 neither duplicate content nor cloud coverage or safe removability. The files were
 preserved. A personal Drafts rebuild or orphan-file deletion is not offered.
 
+### Generated Drafts replacement and rebuild
+
+A separate read-only loopback Drafts mailbox exposed one generated unsent message
+at a time. Versions 1 and 2 shared a Message-ID with different 2 MiB PDFs; version
+3 used a distinct Message-ID. Each replacement received a fresh UID. Native Mail
+removed the preceding version's files and held steady at three files and
+2,105,344 allocated bytes. Every current PDF matched its source SHA-256. This
+server-side replacement model did not reproduce the historical Drafts footprint
+and does not establish how Mail's actual compose autosave assigns identities.
+
+Rebuild of only that synthetic Drafts mailbox produced a new native row and PDF
+inode with the same payload hash and allocation; the fixture logged fresh body
+fetches. A second rebuild removed a deliberately inserted 2 MiB generated
+filename sentinel beside the old message files. The mailbox temporarily had no
+indexed messages, then an explicit fixture-account sync restored the current PDF
+with its original hash. The sentinel was named `.emlxpart` but was not a valid
+native legacy part: this tests directory coverage, not legacy-part correctness.
+
+Rebuild can therefore remove unindexed material in this controlled case; it is
+not an orphan-inspection operation. That makes verified server coverage essential
+before applying it to valuable historical drafts. No personal Drafts mailbox was
+rebuilt or cleaned. No composer or Send action was used, the test account was
+disabled afterward, all generated server originals remained unchanged, and the
+temporary server was stopped.
+
 ### A test-label rebuild did not prove reclamation
 
 Three generated messages were imported through Mail and copied into a dedicated
