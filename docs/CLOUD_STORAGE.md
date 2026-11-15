@@ -11,8 +11,9 @@ remain unverified on older systems.
 
 **Mail and Messages are the priority; neither has a verified storage quota yet.**
 The investigation found concrete gaps in their native cleanup behavior, described
-below. A modeled IMAP window reclaimed and restored Mail files across two cycles;
-the real Gmail folder-limit setting remains untested.
+below. A modeled IMAP window reclaimed and restored Mail files across two cycles.
+A temporary real Gmail window reclaimed 1.64 GB and survived a Mail restart;
+restoring Unlimited reset the native index, then restored all 117,821 All Mail rows.
 A native Messages purge request was rejected for missing Apple entitlements.
 A separate generated Drive-backed archive recovered media, with helper, cache
 and recovery limitations described below.
@@ -32,8 +33,8 @@ The public 0.4.1 download does not include this new feature yet.
 | --- | --- | --- | --- |
 | Photos | Existing native Photos cache service | Existing safety and runtime regression tests still pass | Keep the existing optimization behavior |
 | iCloud Drive regular files, including synced Desktop/Documents | Official `FileManager.evictUbiquitousItem(at:)` | Real upload, eviction to a cloud-only placeholder, redownload and SHA-256 comparison; native UI and signed app worker tested | Implement manual selection of uploaded regular files; package-format iWork documents remain excluded |
-| Messages / iMessage | Native purge mechanisms exist; a separate managed Drive archive was tested | Native purge was rejected for missing entitlements. A generated archive recovered media, but a full cold pair was tested once and provider recovery required restarting Messages | Block native cleanup and personal migration; the managed archive remains research |
-| Mail / iCloud Mail | Native cache services and download preferences exist | A generated IMAP visibility window reclaimed files and restored matching payloads across two cycles, including a Mail restart. Real Gmail folder-limit behavior remains untested | Block cleanup and automatic preference changes; verify the real Gmail window before implementation |
+| Messages / iMessage | Native purge mechanisms exist; a separate managed Drive archive was tested | Native purge was rejected for missing entitlements. A generated archive recovered media; follow-up provider recovery kept the same mount and required refreshed collection metadata | Block native cleanup and personal migration; cold native movie recovery after an outage and cache quotas remain unproven |
+| Mail / iCloud Mail | A Gmail message-count window can reduce the native mirror | A modeled IMAP window passed two cycles. A temporary real Gmail window reclaimed 1.64 GB, persisted across restart, and triggered native reset/backfill when reverted | No Mail quota or cleanup feature shipped; Gmail integration needs account-wide UX and Google's scope verification |
 | Music | Native Remove Download client found; read-only connection works | Exact persistent-ID payload verified against Apple's storage extension. A real catalogue download test was blocked by Apple's associated-device limit | Do not enable removal without a successful download/removal/restore test |
 | TV | Remove Download exists in TV | Official UI semantics and local scripting dictionary inspected; home videos can be local-only | Manual native-app action only; not runtime-tested |
 | iCloud-synced Books PDFs and EPUB packages | Official iCloud eviction for uploaded document roots | Generated PDF restored byte-for-byte through Books; generated EPUB restored all seven package files with identical SHA-256 hashes | Implement selected PDFs and EPUB packages in the canonical Books iCloud documents folder; do not scan offloaded packages |
@@ -67,7 +68,7 @@ all large Mail stores are duplicate caches. Messages reset advice likewise
 includes a [report of the full cache downloading again](https://www.reddit.com/r/MacOS/comments/1qbc14o/store_all_of_your_imessages_in_icloud_not_on_your/).
 Neither reset instructions nor a cache directory name proves safe reclamation.
 
-## Safety contract
+## iCloud Downloads safety contract
 
 - Only files explicitly chosen in the native file picker are considered.
 - No recursive folder cleanup, automatic eviction, new background scan, or
@@ -109,10 +110,14 @@ Keep Downloaded can be reliably overridden or tracked through this interface.
 
 ## Verification
 
-Only newly generated test documents were evicted. No personal Photos assets,
-messages, mail, libraries, database contents or existing cloud archives were
-removed. A catalogue music download was attempted for the native removal test;
-Apple blocked it before a local track was created, so no music removal occurred.
+Direct eviction and retained-file experiments targeted generated fixtures only.
+Separately, an explicitly approved temporary Gmail setting let native Mail reduce
+older personal local cache entries through normal synchronization. Investigation
+code never deletes Mail files, edits its database or issues message-deletion
+commands. Personal Photos assets, Messages attachments, libraries, existing cloud
+archives and project data were preserved. A catalogue music download was
+attempted for the native removal test; Apple blocked it before a local track was
+created, so no music removal occurred.
 
 - Initial characterization: a generated 4 MiB file completed three upload →
   eviction → download cycles. Every cloud-only observation reported zero local
@@ -337,8 +342,9 @@ playback. A later cold repeat fetched a fresh JPEG and showed moving LIVE, but
 the MOV's Drive source remained cloud-only: cached motion was still possible.
 Full cold JPEG/MOV recovery was demonstrated once, not repeatedly.
 
-Stopping the helper while LIVE was warm did not stop playback. The temporary
-WebDAV mount then disappeared. A cold/reopened unavailable state lacked Quick
+The initial mount used `-S`. Stopping the helper while LIVE was warm did not stop
+playback. The temporary WebDAV mount then disappeared. A cold/reopened
+unavailable state lacked Quick
 Look, Copy and Share; the checked attachment identity and transfer/cloud state
 remained unchanged, with no synchronized deletion observed. Restoring the
 server and same mount, then opening a new conversation window, did not refresh
@@ -355,6 +361,24 @@ restored with their original inodes and matching SHA-256 hashes. Native Quick
 Look then played the moving Live Photo with the test server and mount stopped.
 Personal migration is not enabled.
 
+A follow-up server-outage test omitted `mount_webdav -S`, which explicitly
+unmounts an unresponsive server. The same mount and Apple client survived, but
+file lookups initially returned cached `ENOENT` despite a fresh directory listing.
+This matches [Apple's negative-lookup cache logic](https://github.com/apple-oss-distributions/webdavfs/blob/main/webdav_fs.kextproj/webdav_fs.kmodproj/webdav_vnops.c#L1045):
+failed lookups can be cached, and a changed parent modification time clears them.
+Changing only the synthetic root collection's modification time restored lookups
+after about 35 seconds in this run, without changing file data or versions.
+
+Reopening Quick Look then displayed moving LIVE without remounting or restarting
+Messages or its daemon. Only the JPEG was freshly fetched; the movie remained
+cloud-only, so cached motion was still possible. A subsequent explicit test-helper
+read fetched the complete cloud-only movie through the same mount with matching
+SHA-256. That reader previously failed with `ENOENT` before the metadata fix.
+This separates verified transport recovery from native cold-movie recovery.
+Apple's [separate metadata cache timeouts](https://github.com/apple-oss-distributions/webdavfs/blob/main/mount.tproj/webdav_cache.h#L135)
+also mean recovery need not be immediate. All fixture originals were restored
+again and moving LIVE verified with the temporary server and mount removed.
+
 ## Mail investigation
 
 The test Mac held approximately 13.1 GB in its Mail store before adding test
@@ -364,9 +388,10 @@ V10 store was present; metadata checks did not identify obsolete account stores
 or an obvious duplicate-cache cleanup. Local-only and imported mail was kept.
 The separate Mail Downloads cache initially used approximately 117 MB.
 
-These are allocated bytes, not safely removable estimates. Server and restoration
-tests used generated messages only. A separate read-only local duplicate audit
-compared MIME part lengths and hashes without uploading message contents.
+These are allocated bytes, not safely removable estimates. Attachment-payload
+restoration and hashing tests used generated messages only. A separate read-only
+local duplicate audit compared MIME part lengths and hashes without uploading
+message contents.
 
 ### Download preferences and the Gmail candidate
 
@@ -387,7 +412,7 @@ synchronization](https://support.google.com/mail/answer/7126229?hl=en). The live
 Gmail account offered that setting and was set to unlimited. A message-count
 window could reduce what Mail mirrors while retaining older mail on Gmail.
 It affects all IMAP clients for that account and is not a byte quota. The real
-setting was not changed; its reclamation and restore behavior remain untested.
+setting was tested temporarily as described below, then restored to Unlimited.
 
 Google's [ImapSettings API](https://developers.google.com/workspace/gmail/api/reference/rest/v1/ImapSettings)
 accepts `maxFolderSize` values `0`, `1000`, `2000`, `5000` and `10000`, with `0`
@@ -414,6 +439,51 @@ all server MIME originals remained unchanged throughout both cycles.
 This models a server visibility change, not Gmail's actual cap selection or UID
 semantics. Older hidden messages are absent from Mail until re-exposed. The test
 does not establish a GB quota or per-item eviction that keeps older headers.
+
+### A temporary real Gmail window reclaimed 1.64 GB
+
+An approved limit of 10,000 messages per IMAP folder reduced the tested account's
+native allocation from 9,654,591,488 to 8,015,896,576 bytes: 1,638,694,912 bytes
+reclaimed. Canonical All Mail stabilized at exactly 10,000 rows. The same row
+count, 94,174 file inodes and allocation survived normal Mail quit/relaunch and
+synchronization. Expunge/deletion policies were preserved. Two older messages
+removed locally still matched exact Gmail ID searches, without reading their bodies.
+
+Restoring Unlimited triggered a local index reset and history backfill. The saved
+Unlimited setting was verified after reopening Gmail settings, with the original
+expunge policies unchanged. All Mail returned to its original 117,821 active rows
+and stayed at that count across three samples. This verifies index restoration,
+not a byte-for-byte audit or complete download of every personal message body.
+Returning to the larger window can redownload data and consume the reclaimed
+space. The two older controls returned with matching Message-ID,
+date and message-size metadata. Opening them through native Mail produced fresh
+cache file inodes. Both had already been read; their personal bodies were not
+parsed or hashed by the test. This is a per-folder message count affecting all
+IMAP clients for the account, not a Mac-only or GB quota, and must not be enforced
+in a loop.
+
+After that proper native cache reset, Mail's Save Attachment action recovered
+the generated 4 MiB ZIP and 8,388,659-byte PDF fixture with exact source hashes.
+The valid 33,272-byte PDF also appeared in a fresh native row and decoded cache
+inode with its original SHA-256. The large PDF was deliberately malformed;
+successful saving does not establish rendering. This narrows the earlier failed
+hand-removal result: proper native recovery can work, but retained imported copies
+still prevent independent attribution to a fresh server transfer.
+
+An app integration needs Google's restricted settings scope and public-app
+verification described above. This investigation ships no Gmail setting or Mail quota.
+
+### Remaining Drafts material was preserved
+
+About 7.31 GB remained in the physical Drafts tree, versus 692 MB in the capped
+All Mail tree. Drafts included all 4,376 remaining EMLX-part files, totaling
+5.39 GB, plus 1.08 GB of full EMLX and 787 MB of decoded attachments. Those part
+filenames had no current message-row match. Native Drafts metadata held 1,489
+rows, 1,487 marked deleted and two active.
+
+This suggests accumulated historical or unindexed draft material. It establishes
+neither duplicate content nor cloud coverage or safe removability. The files were
+preserved. A personal Drafts rebuild or orphan-file deletion is not offered.
 
 ### A test-label rebuild did not prove reclamation
 
@@ -523,10 +593,12 @@ cache path remained unresolved without a legitimate global Mail account context,
 so invalidation was refused before execution. This proves a limited isolated
 bootstrap, not a usable external cleaner. MailKit did not expose download eviction.
 
-Native reclamation and matching restoration were demonstrated only for the
-modeled server window. Real Gmail-cap behavior and per-message eviction remain
-unverified. No personal mail or attachment was deleted, and both temporary
-preferences were restored. This branch offers neither Mail cleanup nor a Mail quota.
+Native reclamation was demonstrated for the modeled window and the temporary real
+Gmail window. Generated cache payloads recovered with matching hashes, subject to
+the source-attribution limit above. External per-message eviction remains
+unverified. Investigation code deleted no personal mail or attachments; native
+Mail managed its mirror during the approved window test. Tested preferences were
+restored. This branch offers neither Mail cleanup nor a Mail quota.
 
 ## Music, TV and other stores
 
