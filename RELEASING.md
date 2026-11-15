@@ -43,5 +43,18 @@ Never export signing secrets into this repository.
    the installed version, background relaunch, retained permissions, and
    settings-pane refresh after System Settings closes.
 
+## Publish the download before offering an update
+
+To make a verified release available to new downloads first, publish its GitHub
+release and update the download links in `README.md` and `docs/HELP.md`. Keep
+the repository-root `appcast.xml` unchanged until existing installations should
+receive the update. The app reads that feed, independently of GitHub's latest
+release and the download links.
+
+Use a new marketing version and build number for this release as usual. Keep
+older release assets available because the live feed still references them.
+When ready to offer the update, publish the verified generated appcast from
+this release, preserving its existing entries and signatures.
+
 Only call the release ready once these checks pass. Keep a failed release in
 draft and leave the live feed pointing at the previous verified version.
