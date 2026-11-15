@@ -2,19 +2,20 @@
 
 Investigation: 15 November 2026. The new iCloud Downloads implementation was
 tested with a real iCloud account on an Apple silicon Mac running macOS 27.2.
-The app compiles for macOS 13. The preceding Drive-only commit passed test/build
-and same-binary smoke checks on macOS 15, 26 and 27; the current Books extension
-has passed local tests and a signed build on macOS 27.2. Real cloud round trips
+The app compiles for macOS 13. The current Drive and Books extension passed
+test/build and same-binary smoke checks on macOS 15, 26 and 27, plus a local
+Developer ID signed build on macOS 27.2. Real cloud round trips
 remain unverified on older systems.
 
 ## Result
 
 **Mail and Messages are the priority; neither has a verified storage quota yet.**
 The investigation found concrete gaps in their native cleanup behavior, described
-below. A Gmail synchronization window is the strongest remaining Mail candidate.
-A generated Messages Live Photo recovered through the native app, but its source
-could not be distinguished from retained local caches; the real per-transfer
-purge request was rejected for missing Apple entitlements.
+below. A modeled IMAP window reclaimed and restored Mail files across two cycles;
+the real Gmail folder-limit setting remains untested.
+A native Messages purge request was rejected for missing Apple entitlements.
+A separate generated Drive-backed archive recovered media, with helper, cache
+and recovery limitations described below.
 
 **iCloud Drive and iCloud-synced Books downloads are supported in this branch.**
 Options → iCloud Downloads → Manage Downloads opens a small native window.
@@ -31,8 +32,8 @@ The public 0.4.1 download does not include this new feature yet.
 | --- | --- | --- | --- |
 | Photos | Existing native Photos cache service | Existing safety and runtime regression tests still pass | Keep the existing optimization behavior |
 | iCloud Drive regular files, including synced Desktop/Documents | Official `FileManager.evictUbiquitousItem(at:)` | Real upload, eviction to a cloud-only placeholder, redownload and SHA-256 comparison; native UI and signed app worker tested | Implement manual selection of uploaded regular files; package-format iWork documents remain excluded |
-| Messages / iMessage | Native eligibility, purge and recent-download mechanisms exist | Generated Live Photo recovered with matching hashes, but fresh cloud restoration was unproven. A real per-transfer purge request was rejected for missing Apple entitlements | Block cleanup; associated media and upload failures remain unproven |
-| Mail / iCloud Mail | Native cache services and download preferences exist | Native estimates return zero with metadata-query failures; quit tests reclaimed nothing. A generated ZIP did not fully redownload after a reversible missing-cache test. Only 24.4 MB of decoded attachments had proven complete local duplicates | Block cleanup and automatic preference changes; investigate Gmail's server-side synchronization window |
+| Messages / iMessage | Native purge mechanisms exist; a separate managed Drive archive was tested | Native purge was rejected for missing entitlements. A generated archive recovered media, but a full cold pair was tested once and provider recovery required restarting Messages | Block native cleanup and personal migration; the managed archive remains research |
+| Mail / iCloud Mail | Native cache services and download preferences exist | A generated IMAP visibility window reclaimed files and restored matching payloads across two cycles, including a Mail restart. Real Gmail folder-limit behavior remains untested | Block cleanup and automatic preference changes; verify the real Gmail window before implementation |
 | Music | Native Remove Download client found; read-only connection works | Exact persistent-ID payload verified against Apple's storage extension. A real catalogue download test was blocked by Apple's associated-device limit | Do not enable removal without a successful download/removal/restore test |
 | TV | Remove Download exists in TV | Official UI semantics and local scripting dictionary inspected; home videos can be local-only | Manual native-app action only; not runtime-tested |
 | iCloud-synced Books PDFs and EPUB packages | Official iCloud eviction for uploaded document roots | Generated PDF restored byte-for-byte through Books; generated EPUB restored all seven package files with identical SHA-256 hashes | Implement selected PDFs and EPUB packages in the canonical Books iCloud documents folder; do not scan offloaded packages |
@@ -321,6 +322,39 @@ followed. Both recovered files and their metadata remained unchanged. No databas
 edit, forged Apple identity or direct-deletion fallback was used. A reliable
 third-party Messages quota remains unproven.
 
+### Messages: a generated Drive-backed archive
+
+A separate test stored a verified extra copy of the generated JPEG/MOV pair in
+iCloud Drive and served it through a read-only helper and macOS's WebDAV client.
+Only the generated transfer temporarily used that mounted backing. This creates
+an additional archive and depends on the helper, mount and Drive originals; it
+does not verify or evict the native iMessage cloud copy. No Messages database
+write or personal attachment migration was used.
+
+With both Drive resources initially cloud-only, one pass fetched both through
+the helper and native Quick Look displayed the full Live Photo with moving LIVE
+playback. A later cold repeat fetched a fresh JPEG and showed moving LIVE, but
+the MOV's Drive source remained cloud-only: cached motion was still possible.
+Full cold JPEG/MOV recovery was demonstrated once, not repeatedly.
+
+Stopping the helper while LIVE was warm did not stop playback. The temporary
+WebDAV mount then disappeared. A cold/reopened unavailable state lacked Quick
+Look, Copy and Share; the checked attachment identity and transfer/cloud state
+remained unchanged, with no synchronized deletion observed. Restoring the
+server and same mount, then opening a new conversation window, did not refresh
+availability. A normal Messages quit/relaunch restored Quick Look and moving
+LIVE without restarting imagent. Automatic provider recovery remains unproven.
+
+An empty WebDAV cache directory did not mean its disk allocation was gone. One
+unlinked JPEG still held by the client had 24,576 allocated bytes. A cross-process
+file-descriptor scan was incomplete and did not cover memory mappings or
+kernel-only references, so total retained cache allocation remains unknown.
+This retained-original experiment establishes neither net disk savings nor a
+cache quota. The original fixture files and their native companion package were
+restored with their original inodes and matching SHA-256 hashes. Native Quick
+Look then played the moving Live Photo with the test server and mount stopped.
+Personal migration is not enabled.
+
 ## Mail investigation
 
 The test Mac held approximately 13.1 GB in its Mail store before adding test
@@ -352,9 +386,34 @@ Google officially documents [IMAP folder-size limits and excluding folders from
 synchronization](https://support.google.com/mail/answer/7126229?hl=en). The live
 Gmail account offered that setting and was set to unlimited. A message-count
 window could reduce what Mail mirrors while retaining older mail on Gmail.
-It affects all IMAP clients for that account and is not a byte quota. The setting
-was not changed; its actual reclamation and restore behavior remain untested.
-This is the strongest remaining Mail candidate without private Apple purge access.
+It affects all IMAP clients for that account and is not a byte quota. The real
+setting was not changed; its reclamation and restore behavior remain untested.
+
+Google's [ImapSettings API](https://developers.google.com/workspace/gmail/api/reference/rest/v1/ImapSettings)
+accepts `maxFolderSize` values `0`, `1000`, `2000`, `5000` and `10000`, with `0`
+meaning unlimited messages per folder. [Updating it](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.settings/updateImap)
+requires `gmail.settings.basic`, which Google classifies as a
+[restricted scope](https://developers.google.com/workspace/gmail/api/auth/scopes).
+A public integration needs Google's scope verification as well as real-account
+behavior tests. It must preserve the separate expunge/deletion-policy fields.
+
+### A modeled IMAP window reclaimed and restored local files
+
+Four self-generated PDFs were served by a read-only IMAP fixture bound only to
+the Mac's loopback interface. All four native Mail attachment copies initially
+matched their source SHA-256 hashes. Hiding the older two messages while retaining
+all complete server MIME originals let Mail remove their local rows and files.
+The test account's allocated storage fell from 4,235,264 to 2,121,728 bytes.
+
+Re-exposing the older messages with fresh IMAP UIDs produced new native files
+with new inodes and exactly matching payload hashes. A second shrink followed by
+a normal Mail quit/reopen retained the 2,121,728-byte cache and two visible
+messages. The second restore again matched all four native attachment hashes;
+all server MIME originals remained unchanged throughout both cycles.
+
+This models a server visibility change, not Gmail's actual cap selection or UID
+semantics. Older hidden messages are absent from Mail until re-exposed. The test
+does not establish a GB quota or per-item eviction that keeps older headers.
 
 ### A test-label rebuild did not prove reclamation
 
@@ -376,8 +435,10 @@ IMAP traces confirmed fresh body-structure, header and text-part fetches for the
 exact server UID. The attachment stayed at 1% and Save Attachments produced no
 file; no ZIP-part fetch was observed. Its new partial EMLX contained no attachment
 payload. The partial was retained and both originals were returned with their
-original inodes and hashes. Filesystem removal alone did not establish reliable
-Mail attachment restoration.
+original inodes and hashes. This bypassed Mail's native flag-and-cache reset.
+A later owned-record check found both cached and partial flags set; stale
+bookkeeping is a plausible, unproven cause of the 1% stall. This filesystem test
+does not rule out restoration after proper native invalidation.
 
 ### Complete local sources cover little of the attachment store
 
@@ -439,7 +500,7 @@ zero may therefore reflect incomplete metadata discovery; its cause is not
 proven, and zero is not a complete inventory of removable mail. No index rebuild
 or private purge was used to force a result.
 
-### External per-message control remains blocked
+### External per-message eviction remains unverified
 
 A separately signed helper had user-authorized Mail automation access. Account
 retrieval and even Mail's app-name query repeatedly timed out through raw Apple
@@ -449,17 +510,23 @@ events, ScriptingBridge and the GUI parent. A self-event control completed in
 prototype and temporary permission are not part of the production app.
 
 A native `removeMessageDataToRetryDownloadForMessage…` wrapper deletes local
-message files without checking a server copy itself. It was not called. An
-owned-message object could be constructed, but its metadata getters failed before
-Mail's library bootstrap. The apparent reader-status initialization route also
-checks out a writer connection and performs database setup. It was not run on
-the personal store. Further experiments need an isolated Mail test store before
-any invalidator call. MailKit did not expose local download eviction.
+message files without checking a server copy itself. It was not called on personal
+mail. Initial owned-message metadata getters failed before library initialization;
+the apparent reader-status route also checks out a writer and sets up a database,
+so it was not run on the personal store.
 
-Server copies of generated fixtures were verified, but local eviction followed
-by a verified Mail redownload was not demonstrated. No personal mail or attachment
-was deleted, and both temporary preferences were restored. This branch offers
-neither Mail cleanup nor a Mail quota.
+A later isolated process initialized 55 native tables in a fresh generated Mail
+store, wrote a complete IMAP fixture through Mail's native message writer and read
+its exact native message header. Kernel restrictions denied personal Mail,
+Accounts and Preferences writes, plus network and daemon access. The fixture's native
+cache path remained unresolved without a legitimate global Mail account context,
+so invalidation was refused before execution. This proves a limited isolated
+bootstrap, not a usable external cleaner. MailKit did not expose download eviction.
+
+Native reclamation and matching restoration were demonstrated only for the
+modeled server window. Real Gmail-cap behavior and per-message eviction remain
+unverified. No personal mail or attachment was deleted, and both temporary
+preferences were restored. This branch offers neither Mail cleanup nor a Mail quota.
 
 ## Music, TV and other stores
 
