@@ -33,7 +33,7 @@ The public 0.4.1 download does not include this new feature yet.
 | --- | --- | --- | --- |
 | Photos | Existing native Photos cache service | Existing safety and runtime regression tests still pass | Keep the existing optimization behavior |
 | iCloud Drive regular files, including synced Desktop/Documents | Official `FileManager.evictUbiquitousItem(at:)` | Real upload, eviction to a cloud-only placeholder, redownload and SHA-256 comparison; native UI and signed app worker tested | Implement manual selection of uploaded regular files; package-format iWork documents remain excluded |
-| Messages / iMessage | Native purge mechanisms exist; a separate managed Drive archive was tested | Native purge was rejected for missing entitlements. A generated archive recovered media; follow-up provider recovery kept the same mount and required refreshed collection metadata | Block native cleanup and personal migration; cold native movie recovery after an outage and cache quotas remain unproven |
+| Messages / iMessage | Native purge mechanisms exist; a separate managed Drive archive was tested | The direct native purge was rejected for missing entitlements. Generated ordinary images and movies opened from cloud-only archive sources; a full provider outage left an existing video player stuck despite recovered transport | Block native cleanup and personal migration; automatic complete recovery and cache quotas remain unproven |
 | Mail / iCloud Mail | A Gmail message-count window can reduce the native mirror | A modeled IMAP window passed two cycles. A temporary real Gmail window reclaimed 1.64 GB, persisted across restart, and triggered native reset/backfill when reverted | No Mail quota or cleanup feature shipped; Gmail integration needs account-wide UX and Google's scope verification |
 | Music | Native Remove Download client found; read-only connection works | Exact persistent-ID payload verified against Apple's storage extension. A real catalogue download test was blocked by Apple's associated-device limit | Do not enable removal without a successful download/removal/restore test |
 | TV | Remove Download exists in TV | Official UI semantics and local scripting dictionary inspected; home videos can be local-only | Manual native-app action only; not runtime-tested |
@@ -279,6 +279,17 @@ and byte budget, with no chosen attachment GUID or path selector found. It can
 therefore select existing personal attachments before a generated test item.
 No broker purge or user-managed-cache policy change was performed.
 
+Further inspection of the installed broker confirmed that a correctly typed,
+nonempty service-name array filters operation dispatch and survives the fallback
+purge phase. A unique custom service outside its fixed filesystem-type mapping
+would also exclude the filesystem-purge helper. This keeps a synthetic no-op
+provider experiment plausible; the rejected direct daemon RPC does not prove
+that the separate broker route is unavailable. The exact private registration
+callback contract and process-exit cleanup were not established, so the prepared
+fixture refuses execution before loading the framework. No provider was
+registered. Even successful synthetic routing would not isolate a real Messages
+purge to the two test attachments: its service scope includes personal items.
+
 Native CloudKit record-fetch and validation machinery exists in another manager,
 but this investigation did not establish that every broker purge freshly passes
 through that validation. An open-source attachment manager was also examined:
@@ -378,6 +389,67 @@ This separates verified transport recovery from native cold-movie recovery.
 Apple's [separate metadata cache timeouts](https://github.com/apple-oss-distributions/webdavfs/blob/main/mount.tproj/webdav_cache.h#L135)
 also mean recovery need not be immediate. All fixture originals were restored
 again and moving LIVE verified with the temporary server and mount removed.
+
+### Messages: ordinary image and movie archive tests
+
+Two additional, separately authorized self-sends used freshly rendered ordinary
+media: a 12,178-byte JPEG and a 61,864-byte, three-second H.264 movie. Neither was
+imported as a Live Photo. Their native files matched the generated SHA-256 hashes.
+An additional immutable Drive copy of each was uploaded, evicted to zero local
+allocation and independently downloaded again with identical hashes.
+
+These new transfers remained CloudKit pending validation after native Sync Now.
+They were not treated as synced. A separate attended experiment accepted only
+these two fixed generated transfers, retaining their original inodes and two
+independent byte copies. Normal eligibility checks still require synced state;
+this exception does not authorize personal attachment cleanup.
+
+Replacing the JPEG file itself with a symbolic link delivered the correct bytes
+but made native Quick Look show generic file information and the link's size.
+Linking its exact single-file GUID directory instead left the final filename
+regular and full size. That layout passed the following separate tests:
+
+| Test | Result |
+| --- | --- |
+| Ordinary JPEG from an initially cloud-only Drive source | A fresh complete 12,178-byte request; native Quick Look displayed the full generated image |
+| Ordinary movie from a new mount generation and initially cloud-only source | A fresh complete 61,864-byte request; native Messages played moving inline video |
+| Restore, then stop the provider and unmount | Original directory and file inodes and complete hashes restored for both items; full image and moving video worked again |
+
+Both fresh requests happened on Messages launch, before explicit Quick Look or
+Play. This does not prove download only on demand: displaying a conversation
+can fetch its attachments automatically. The tests covered only these two small
+ordinary files and single-file directories, not every attachment family.
+
+A fresh movie generation then began cloud-only while the provider deliberately
+returned payload-only HTTP 503 errors and kept metadata available. The native
+client made 32 failed requests in approximately eight seconds. The bounded fault
+then cleared at its response cap, without changing collection metadata. A fresh
+complete movie download and moving inline playback followed in the same app,
+mount and provider processes. This verifies recovery from that short payload
+failure, not from a stopped process or unavailable metadata.
+
+A separate cold test stopped the entire provider before launching Messages.
+The mount survived, but inline playback failed. Restarting the same generation,
+with its advancing collection timestamp, allowed a fresh complete movie download
+after approximately 35 seconds. A new conversation window could play the other
+message referencing that file; the previously failed inline player remained
+failed. A normal Messages restart restored that player. Automatic complete
+recovery therefore still fails this test, even though transport recovery works.
+
+A separate Developer ID signed app also mounted the authenticated test archive
+using a saved grant to one empty test folder, after relaunch. Quitting that app
+left the mount usable for explicit test-helper reads of both exact backup files.
+The direct system mount route worked; public NetFS still returned a permission
+error at that protected location. The working route uses the system tool's
+deprecated authentication-descriptor interface. It proves narrow mounting
+access, not permission to read or migrate personal Messages history.
+
+All original files and backups remain retained. No net space saving, automatic
+quota, unattended recovery, login ordering or safe uninstall is established by
+these passes. Personal migration remains disabled. Routine updates would also
+need a verified provider handoff: restoring all archived files for every update
+would defeat the storage benefit and could exceed free space. Disable/uninstall
+needs a separate resumable restore path that keeps serving remaining items.
 
 ## Mail investigation
 
