@@ -45,10 +45,12 @@ Never export signing secrets into this repository.
    The private update key stays in Keychain. Do not edit a signed appcast;
    regenerate it with Sparkle's `generate_appcast` if anything changes.
 7. Create a GitHub draft release for the exact source commit. Upload the ZIP
-   and `SHA256SUMS.txt` with `gh release upload`. Publish the release, verify
-   the public archive, and update the download links in `README.md` and
-   `docs/HELP.md`. Leave the repository-root `appcast.xml` unchanged until
-   existing installations should receive this version.
+   and `SHA256SUMS.txt` with `gh release upload`. Download the assets from the
+   draft into a new directory using `gh release download` and verify their
+   checksum, app signature, and stapled notarization ticket before publishing.
+   After publication, verify the public download and update the links in
+   `README.md` and `docs/HELP.md`. Leave the repository-root `appcast.xml`
+   unchanged until existing installations should receive this version.
 8. When ready to offer the update, copy the verified generated appcast to the
    repository root and push it to `main`.
    Keep old feed entries when preparing future releases. The release script
