@@ -476,7 +476,7 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
             state.safetyMessage=status
         case "icloud_optimization_unverified":
             state.cleanupAllowed = false
-            status = "Cleanup is paused. iCloud Photos and Optimize Mac Storage could not be verified."
+            status = "Photos settings could not be verified. In Photos › Settings › iCloud, confirm iCloud Photos is on and select Optimize Mac Storage, then check again."
             state.safetyMessage=status
         case "native_profile_conflict": status = "The prefetch setting was changed outside Photos Storage. Monitoring stopped to preserve that change."
         case "native_profile_unavailable":
