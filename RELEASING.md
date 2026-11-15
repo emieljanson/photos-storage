@@ -25,6 +25,17 @@ Never export signing secrets into this repository.
    using the existing Xcode account. Upload success alone does not prove Apple
    has accepted the app. Updated Apple agreements must be accepted by the
    account holder before Apple permits submission.
+
+   If the command reports `No Accounts` while Xcode shows the account and team,
+   open the archive in Xcode and use **Distribute App → Direct Distribution**
+   before requesting a new sign-in. This route succeeded when the CLI could not
+   load its stored account credentials.
+
+   Xcode imports the archive into `~/Library/Developer/Xcode/Archives/`. Verify
+   its bundled executables match the intended build, preserve the original
+   archive, and copy the uploaded archive back as `PhotosStorage.xcarchive` in
+   the build directory. Its distribution metadata is required for the next
+   step; the original, unsubmitted archive cannot export the notarized app.
 5. After Apple's processing completes, run `zsh release.sh package`. If the
    notarized export is not ready, wait and retry this step without rebuilding
    or resubmitting. It exports the exact app Xcode submitted, checks its
