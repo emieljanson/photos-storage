@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 
 enum ControlAction: String, Codable, Sendable {
-    case setLimit, setAutomatic, setLogin, refresh, grantLibrary, grantPrefetch, openPhotos, showSetup, checkForUpdates, setUpdates
+    case setLimit, setAutomatic, setLogin, refresh, grantLibrary, grantPrefetch, openPhotos, showSetup, checkForUpdates, setUpdates, cloudDownloads
 }
 
 struct ControlRequest: Codable, Sendable {
@@ -37,6 +37,7 @@ struct AgentState: Codable, Sendable {
     var loginNeedsApproval = false
     var automaticUpdates: Bool?
     var canCheckForUpdates: Bool?
+    var cloudDownloadsAvailable: Bool?
     var libraryReady: Bool?
     var prefetchReady: Bool?
     var cleanupAllowed = false

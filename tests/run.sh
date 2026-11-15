@@ -22,3 +22,12 @@ xcrun swiftc -swift-version 6 -warnings-as-errors \
   "$source_dir/../Sources/Shared/ControlProtocol.swift" \
   "$source_dir/../Sources/Agent/SetupSupport.swift" "$build_dir/main.swift" -o "$build_dir/SetupTests"
 "$build_dir/SetupTests"
+cp "$source_dir/CloudDownloadTests.swift" "$build_dir/main.swift"
+xcrun swiftc -swift-version 6 -warnings-as-errors \
+  "$source_dir/../Sources/Agent/CloudDownloads.swift" "$build_dir/main.swift" -o "$build_dir/CloudDownloadTests"
+"$build_dir/CloudDownloadTests"
+xcrun swiftc -parse-as-library -swift-version 6 -warnings-as-errors \
+  "$source_dir/../Sources/Agent/CloudDownloads.swift" \
+  "$source_dir/../Sources/Agent/CloudDownloadsWindow.swift" \
+  "$source_dir/CloudDownloadsModelTests.swift" -o "$build_dir/CloudDownloadsModelTests"
+"$build_dir/CloudDownloadsModelTests"

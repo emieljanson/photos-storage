@@ -29,6 +29,7 @@ static NSString *const agentIdentifier = @"nl.emieljanson.FotoBudget";
 @property(nonatomic, strong) NSSwitch *login;
 @property(nonatomic, strong) NSSwitch *updates;
 @property(nonatomic, strong) NSButton *checkUpdates;
+@property(nonatomic, strong) NSButton *cloudDownloads;
 @property(nonatomic, strong) NSButton *access;
 @property(nonatomic, strong) NSButton *recovery;
 @property(nonatomic, strong) NSButton *refresh;
@@ -204,7 +205,7 @@ static NSString *const agentIdentifier = @"nl.emieljanson.FotoBudget";
 - (void)showOptions:(id)sender {
     (void)sender;
     if (self.optionsPanel.sheetParent) return;
-    self.optionsPanel = [[StorageOptionsPanel alloc] initWithContentRect:NSMakeRect(0, 0, 440, 340)
+    self.optionsPanel = [[StorageOptionsPanel alloc] initWithContentRect:NSMakeRect(0, 0, 440, 380)
         styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:NO];
     self.optionsPanel.title = @"Photos Storage Options";
     self.login = [self miniSwitch:@"Start at login" action:@selector(changeLogin:)];
@@ -212,11 +213,14 @@ static NSString *const agentIdentifier = @"nl.emieljanson.FotoBudget";
     self.checkUpdates = [self button:@"Check for Updates…" action:@selector(checkForUpdates:)];
     self.checked = [self label:@"Not checked yet" secondary:YES];
     self.checked.font = [NSFont monospacedDigitSystemFontOfSize:13 weight:NSFontWeightRegular];
+    self.cloudDownloads = [self button:@"Manage Downloads…" action:@selector(manageCloudDownloads:)];
+    self.cloudDownloads.enabled = [self.snapshot[@"cloudDownloadsAvailable"] boolValue];
     NSBox *settings = [self group:@[
         [self setting:@"Start at login" control:self.login],
         [self setting:@"Automatic updates" control:self.updates],
         [self setting:@"Photos Storage" control:self.checkUpdates],
-        [self setting:@"Last checked" control:self.checked]
+        [self setting:@"Last checked" control:self.checked],
+        [self setting:@"iCloud Drive" control:self.cloudDownloads]
     ]];
     self.loginMessage = [self label:@"" secondary:YES];
     self.loginMessage.hidden = YES;
@@ -408,6 +412,11 @@ static NSString *const agentIdentifier = @"nl.emieljanson.FotoBudget";
 - (void)changeUpdates:(id)sender { (void)sender; [self send:@"setUpdates" value:nil enabled:@(self.updates.state == NSControlStateValueOn)]; }
 - (void)checkForUpdates:(id)sender { (void)sender; [self send:@"checkForUpdates" value:nil enabled:nil]; }
 - (void)checkNow:(id)sender { (void)sender; [self send:@"refresh" value:nil enabled:nil]; }
+- (void)manageCloudDownloads:(id)sender {
+    (void)sender;
+    [self send:@"cloudDownloads" value:nil enabled:nil];
+    [self closePanel:self.optionsPanel];
+}
 - (void)openPhotos:(id)sender { (void)sender; [self send:@"openPhotos" value:nil enabled:nil]; }
 - (void)grantAccess:(id)sender {
     (void)sender;
@@ -448,6 +457,7 @@ static NSString *const agentIdentifier = @"nl.emieljanson.FotoBudget";
     self.updates.state = [state[@"automaticUpdates"] boolValue] ? NSControlStateValueOn : NSControlStateValueOff;
     self.updates.enabled = alive && state[@"automaticUpdates"] != nil;
     self.checkUpdates.enabled = alive && [state[@"canCheckForUpdates"] boolValue];
+    self.cloudDownloads.enabled = alive && [state[@"cloudDownloadsAvailable"] boolValue];
     self.loginMessage.stringValue = state[@"loginMessage"] ?: @"";
     self.loginMessage.hidden = !self.loginMessage.stringValue.length;
     self.status.stringValue = [self summaryForState:state alive:alive];

@@ -78,6 +78,11 @@ do not replace a backup. There is no reliable “only keep the last N days” AP
 
 ## Architecture
 
+The development branch also includes a manual iCloud Downloads window. See the
+[capability investigation and live-test results](CLOUD_STORAGE.md). It uses
+Apple's public local-download eviction API, not the private Photos cache service.
+Its isolated worker never starts the Photos agent or reads its preferences.
+
 The settings pane reads a small status snapshot and sends typed commands to
 the background agent through a private directory for the current account.
 Only the agent holds the existing Photos access and runs the native helper.

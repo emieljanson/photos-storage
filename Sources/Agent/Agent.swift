@@ -25,6 +25,7 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
     private var accessProblem: String?
     private var latestReply: CacheReply?
     private var setupController: SetupWindowController?
+    private var cloudDownloadsController: CloudDownloadsWindowController?
     private var openingSettings = false
     private var updates: AppUpdates?
     private var status: String {
@@ -55,7 +56,8 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
         updates = AppUpdates(isIdle: { [weak self] in
             guard let self else { return false }
             return !self.busy && self.pendingRequest == nil && !self.openingSettings && NSApp.modalWindow == nil &&
-                self.setupController?.window?.isVisible != true
+                self.setupController?.window?.isVisible != true &&
+                self.cloudDownloadsController?.window?.isVisible != true && self.cloudDownloadsController?.model.busy != true
         }, willRelaunch: { [weak self] in self?.defaults.set(true, forKey: "updateRelaunch") },
            stateDidChange: { [weak self] in self?.publish() })
         if defaults.bool(forKey: "setupCompleted") {
@@ -208,6 +210,7 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
         state.loginNeedsApproval = SMAppService.mainApp.status == .requiresApproval
         state.automaticUpdates = updates?.enabled
         state.canCheckForUpdates = updates?.canCheck
+        state.cloudDownloadsAvailable = true
         setupController?.model.state = state
         do {
             try inbox.publish(state)
@@ -265,6 +268,12 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
         case .checkForUpdates: updates?.check()
         case .setUpdates:
             if let enabled = command.enabled { updates?.setEnabled(enabled) }
+        case .cloudDownloads:
+            if cloudDownloadsController == nil {
+                cloudDownloadsController = CloudDownloadsWindowController()
+                cloudDownloadsController?.model.didFinish = { [weak self] in self?.updates?.resumeInstallationIfIdle() }
+            }
+            cloudDownloadsController?.present()
         }
     }
 
