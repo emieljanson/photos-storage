@@ -19,6 +19,9 @@ int main(void) {
         if (!checkState((PhotoSafetyState){NO,YES,0},NO,@"icloud_optimization_unverified")) return 4;
         if (!checkState((PhotoSafetyState){YES,YES,2},NO,@"icloud_optimization_unverified")) return 5;
         if (!checkState((PhotoSafetyState){YES,YES,-1},NO,@"icloud_optimization_unverified")) return 6;
+        if (!checkState((PhotoSafetyState){NO,NO,PhotoModeAccessRequired},NO,@"photos_status_access_required")) return 9;
+        if (!checkState((PhotoSafetyState){NO,NO,PhotoModeAccessDenied},NO,@"photos_status_access_denied")) return 10;
+        if (!checkState((PhotoSafetyState){NO,NO,PhotoModeNativeUnavailable},NO,@"photos_settings_unavailable")) return 11;
         __block BOOL optimizationChanged=NO;
         __block unsigned operations=0;
         PhotoSafetyState (^read)(void)=^{ return (PhotoSafetyState){YES,YES,optimizationChanged ? 1 : 0}; };

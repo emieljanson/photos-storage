@@ -6,6 +6,7 @@
 #import "LibraryFootprint.h"
 #import "PhotoSafetyMetadata.h"
 #import "PhotoRuntimeSupport.h"
+#import "PhotoEffectiveSettings.h"
 #import <dlfcn.h>
 #import <errno.h>
 #import <fcntl.h>
@@ -50,8 +51,24 @@ static BOOL sameLibrary(NSURL *expected, struct stat identity) {
         !lstat(current.fileSystemRepresentation,&info) && info.st_ino==identity.st_ino && info.st_dev==identity.st_dev;
 }
 
-static PhotoSafetyState readPhotoSafety(NSURL *library) {
-    return PhotoReadMetadataSafety(library);
+static PhotoSafetyState readPhotoSafety(NSURL *library, NSMutableDictionary *result) {
+    result[@"optimization_mode_source"]=@"library_metadata";
+    [result removeObjectForKey:@"photos_status_authorization"];
+    return PhotoReadMetadataSafety(library,^{
+        result[@"optimization_mode_source"]=@"photos_service";
+        Class clientClass=NSClassFromString(@"PLAssetsdClient"), settingsClass=NSClassFromString(@"PLCPLSettings");
+        if (!PhotoEffectiveSettingsAvailable(clientClass,settingsClass) ||
+            !PhotoInstanceMethodMatches(NSClassFromString(@"PLAssetsdCloudClient"),@"getCPLSettings","@16@0:8")) {
+            return (PhotoSafetyState){NO,NO,PhotoModeNativeUnavailable};
+        }
+        PHAuthorizationStatus authorization=[PHPhotoLibrary authorizationStatusForAccessLevel:PHAccessLevelReadWrite];
+        result[@"photos_status_authorization"]=@(authorization);
+        if (authorization!=PHAuthorizationStatusAuthorized) {
+            return (PhotoSafetyState){NO,NO,authorization==PHAuthorizationStatusNotDetermined ? PhotoModeAccessRequired : PhotoModeAccessDenied};
+        }
+        PhotoSafetyState native=PhotoReadEffectiveSettings(library,clientClass,settingsClass);
+        return native.verified ? native : (PhotoSafetyState){NO,NO,PhotoModeNativeUnavailable};
+    });
 }
 
 static BOOL measure(NSURL *library, NSMutableDictionary *result) {
@@ -142,7 +159,7 @@ int main(int argc, const char *argv[]) {
             result[@"error_code"]=@"volume_unavailable"; emit(result); return 4;
         }
         result[@"library_path"]=library.path;
-        BOOL safe=PhotoAnnotateSafety(readPhotoSafety(library),result);
+        BOOL safe=PhotoAnnotateSafety(readPhotoSafety(library,result),result);
         if (!sameLibrary(library,identity)) { result[@"error_code"]=@"library_changed"; emit(result); return 4; }
         if (safetyOnly || (execute && !safe)) {
             result[@"ok"]=@(safe);
@@ -189,7 +206,7 @@ int main(int argc, const char *argv[]) {
         __block CFTypeRef token=NULL;
         BOOL permitted=PhotoRunWithSafetyCheck(^{
             if (!sameLibrary(library,identity)) return (PhotoSafetyState){NO,NO,-1};
-            PhotoSafetyState state=readPhotoSafety(library);
+            PhotoSafetyState state=readPhotoSafety(library,result);
             return sameLibrary(library,identity) ? state : (PhotoSafetyState){NO,NO,-1};
         }, ^{ token=purge((__bridge CFDictionaryRef)@{
             @"CACHE_DELETE_VOLUME":volume.path,@"CACHE_DELETE_URGENCY":@4,

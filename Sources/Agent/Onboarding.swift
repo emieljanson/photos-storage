@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 enum SetupAction {
-    case start, primary, openPhotos, dismiss
+    case start, primary, openPhotos, checkAgain, dismiss
 }
 
 @MainActor
@@ -34,6 +34,7 @@ struct SetupView: View {
         if attention { return "Setup Needs Attention" }
         if model.step == .library { return "Photos Library" }
         if model.step == .preferences { return "Photos Settings" }
+        if model.step == .photosStatus { return "Photos Storage Setting" }
         return "Allow Access"
     }
 
@@ -44,6 +45,11 @@ struct SetupView: View {
         switch model.step {
         case .library: return "In the next window, your Photos library is selected. Click Allow Library to let Photos Storage measure its size."
         case .preferences: return "In the next window, the Photos settings file is selected. Click Allow Settings to manage optional downloads."
+        case .photosStatus:
+            if model.state.photosStatusAccess == .denied {
+                return "Allow Full Access for Photos Storage in Privacy & Security › Photos, then check again. This access is used only to verify your storage setting."
+            }
+            return "Photos has not saved a storage choice for this library. Allow Photos access to read the effective setting without changing it. macOS grants access to your library; Photos Storage uses it only to verify this setting."
         default: return "Checking access to your Photos library and settings…"
         }
     }
@@ -55,6 +61,7 @@ struct SetupView: View {
         case .checking: return "Checking…"
         case .library: return "Allow Photos Library…"
         case .preferences: return "Allow Photos Settings…"
+        case .photosStatus: return model.state.photosStatusAccess == .denied ? "Open Access Settings" : "Allow Photos Access…"
         case .attention: return "Check Again"
         case .ready: return "Open System Settings"
         }
@@ -79,8 +86,12 @@ struct SetupView: View {
 
                     if model.started && !ready && !attention {
                         VStack(alignment: .leading, spacing: 18) {
-                            permission("Photos Library", detail: "Measure the space used by your local library.", granted: model.state.libraryReady == true)
-                            permission("Photos Settings", detail: "Adjust how much Photos downloads in advance.", granted: model.state.prefetchReady == true)
+                            if model.step == .photosStatus {
+                                permission("Photos Access", detail: "Verify the current storage setting.", granted: false)
+                            } else {
+                                permission("Photos Library", detail: "Measure the space used by your local library.", granted: model.state.libraryReady == true)
+                                permission("Photos Settings", detail: "Adjust how much Photos downloads in advance.", granted: model.state.prefetchReady == true)
+                            }
                         }
                     } else {
                         Label("System Settings › Photos Storage", systemImage: "gearshape")
@@ -117,6 +128,9 @@ struct SetupView: View {
                 Spacer()
                 if attention {
                     Button("Open Photos") { model.action(.openPhotos) }
+                }
+                if model.started && model.step == .photosStatus && model.state.photosStatusAccess == .denied {
+                    Button("Check Again") { model.action(.checkAgain) }
                 }
                 if model.openingSettings || (model.started && model.step == .checking) {
                     ProgressView().controlSize(.small)

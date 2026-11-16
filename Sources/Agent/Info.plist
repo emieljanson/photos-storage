@@ -7,11 +7,12 @@
 <key>CFBundleExecutable</key><string>PhotosStorage</string>
 <key>CFBundleIconFile</key><string>PhotosStorage.icns</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.4.2</string>
-<key>CFBundleVersion</key><string>12</string>
+<key>CFBundleShortVersionString</key><string>0.4.3</string>
+<key>CFBundleVersion</key><string>13</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
+<key>NSPhotoLibraryUsageDescription</key><string>Photos Storage uses Photos access only to verify your iCloud storage setting when Photos has not saved an explicit choice. It does not read or change photo content.</string>
 <key>SUFeedURL</key><string>https://raw.githubusercontent.com/emieljanson/photos-storage/main/appcast.xml</string>
 <key>SUPublicEDKey</key><string>efeeOqvv19v7sFqLdk3g1zi5p0DcWx7i6DVoXiUKZEU=</string>
 <key>SUEnableAutomaticChecks</key><true/>

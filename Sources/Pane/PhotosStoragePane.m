@@ -411,7 +411,9 @@ static NSString *const agentIdentifier = @"nl.emieljanson.FotoBudget";
 - (void)openPhotos:(id)sender { (void)sender; [self send:@"openPhotos" value:nil enabled:nil]; }
 - (void)grantAccess:(id)sender {
     (void)sender;
-    [self send:@"showSetup" value:nil enabled:nil];
+    BOOL denied = [self.snapshot[@"photosStatusAccess"] isEqual:@"denied"] &&
+        [self.snapshot[@"libraryReady"] isEqual:@YES] && [self.snapshot[@"prefetchReady"] isEqual:@YES];
+    [self send:denied ? @"grantPhotosStatus" : @"showSetup" value:nil enabled:nil];
 }
 
 - (NSString *)summaryForState:(NSDictionary *)state alive:(BOOL)alive {
@@ -419,6 +421,7 @@ static NSString *const agentIdentifier = @"nl.emieljanson.FotoBudget";
     NSString *message = state[@"message"] ?: @"";
     if ([message hasPrefix:@"This version of Photos is not supported."]) return @"This version of Photos is not supported.";
     if ([state[@"libraryReady"] isEqual:@NO] || [state[@"prefetchReady"] isEqual:@NO]) return @"Allow access to continue.";
+    if (state[@"photosStatusAccess"]) return @"Allow Photos access to verify your storage setting.";
     if (state[@"safetyMessage"]) return @"Check iCloud Photos and Optimize Mac Storage in Photos.";
     if ([state[@"busy"] boolValue]) return [message containsString:@"freeing"] ? @"Optimizing…" : @"Checking…";
     if ([message containsString:@"not responding"]) return @"Waiting for macOS. Will try again.";
@@ -458,10 +461,13 @@ static NSString *const agentIdentifier = @"nl.emieljanson.FotoBudget";
     self.refresh.enabled = alive && ![state[@"busy"] boolValue];
     BOOL needsLibrary = [state[@"libraryReady"] isEqual:@NO];
     BOOL needsPrefetch = [state[@"prefetchReady"] isEqual:@NO];
-    self.access.hidden = !needsLibrary && !needsPrefetch;
+    BOOL needsPhotosStatus = state[@"photosStatusAccess"] != nil;
+    self.access.hidden = !needsLibrary && !needsPrefetch && !needsPhotosStatus;
     self.access.enabled = ![state[@"busy"] boolValue];
-    self.access.title = needsLibrary ? @"Allow Photos Library…" : @"Allow Settings Access…";
-    self.recovery.hidden = !state[@"safetyMessage"] || needsLibrary || needsPrefetch;
+    if (needsLibrary) self.access.title = @"Allow Photos Library…";
+    else if (needsPrefetch) self.access.title = @"Allow Settings Access…";
+    else self.access.title = [state[@"photosStatusAccess"] isEqual:@"denied"] ? @"Open Access Settings" : @"Allow Photos Access…";
+    self.recovery.hidden = !state[@"safetyMessage"] || needsLibrary || needsPrefetch || needsPhotosStatus;
     NSNumber *checkTime = state[@"lastCheckAt"];
     if (checkTime.doubleValue > 0) {
         NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
