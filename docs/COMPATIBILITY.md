@@ -69,6 +69,9 @@ measurement worked in both states. Reading the Photos daemon preferences,
 opening that file for writing, and the production budget read stayed denied
 with `EPERM`. Photos authorization therefore does not replace settings-file
 access for the current budget implementation. The real budget was not changed.
+Setup still requires the Photos Settings check to pass. If it stays pending,
+choose **Allow Photos Settings…** in setup and allow the selected settings file,
+even if Photos Full Access has already been granted.
 
 These integrations are private macOS interfaces. Capability checks allow
 compatible OS updates and stop automatic optimization when an interface changes.
