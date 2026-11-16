@@ -76,7 +76,7 @@
     [NSUserDefaults.standardUserDefaults setInteger:scenario forKey:@"scenario"];
     NSMutableDictionary *state = [@{@"version":@1, @"pid":@(getpid()), @"totalBytes":@500000000000,
         @"freeBytes":@60000000000, @"usedBytes":@25500000000, @"limitGB":@30,
-        @"automatic":@YES, @"loginEnabled":@YES, @"automaticUpdates":@YES, @"canCheckForUpdates":@YES,
+        @"automatic":@YES, @"loginEnabled":@YES, @"automaticUpdates":@YES, @"canCheckForUpdates":@YES, @"cloudDownloadsAvailable":@YES,
         @"libraryReady":@YES, @"prefetchReady":@YES, @"cleanupAllowed":@YES,
         @"lastCheckAt":@(NSDate.date.timeIntervalSince1970), @"message":@"Local Photos storage is within your target."} mutableCopy];
     switch (scenario) {

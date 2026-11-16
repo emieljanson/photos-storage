@@ -29,12 +29,16 @@ ditto "$sparkle_dir/Sparkle.framework" "$app/Contents/Frameworks/Sparkle.framewo
 cp "$sparkle_dir/LICENSE" "$app/Contents/Resources/Sparkle-LICENSE.txt"
 xcrun clang -target "$target" -Wall -Wextra -Werror -fobjc-arc -framework Foundation -framework Photos \
   "$source_dir/Sources/Agent/LibraryHelper.m" -o "$app/Contents/MacOS/FotoBudgetCacheHelper"
+xcrun clang -target "$target" -Wall -Wextra -Werror -fobjc-arc -c \
+  "$source_dir/Sources/Shared/CloudEviction.m" -o "$build_dir/CloudEviction.o"
 xcrun swiftc -target "$target" -swift-version 6 -warnings-as-errors \
+  -import-objc-header "$source_dir/Sources/Shared/CloudEviction.h" "$build_dir/CloudEviction.o" \
   -framework AppKit -framework SwiftUI -framework ServiceManagement -framework UniformTypeIdentifiers \
   -F "$sparkle_dir" -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
   "$source_dir/Sources/Agent/CacheClient.swift" "$source_dir/Sources/Shared/ControlProtocol.swift" \
   "$source_dir/Sources/Agent/SetupSupport.swift" "$source_dir/Sources/Agent/Onboarding.swift" \
   "$source_dir/Sources/Agent/AppUpdates.swift" \
+  "$source_dir/Sources/Agent/CloudDownloads.swift" "$source_dir/Sources/Agent/CloudDownloadsWindow.swift" \
   "$source_dir/Sources/Agent/Agent.swift" "$source_dir/Sources/Agent/main.swift" \
   -o "$app/Contents/MacOS/PhotosStorage"
 xcrun clang -target "$target" -Wall -Wextra -Werror -fobjc-arc -bundle -framework Cocoa -framework PreferencePanes \
