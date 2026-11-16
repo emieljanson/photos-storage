@@ -6,6 +6,37 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>Photos Storage</title>
         <item>
+            <title>0.4.3</title>
+            <pubDate>Mon, 16 Nov 2026 14:56:54 +0100</pubDate>
+            <sparkle:version>13</sparkle:version>
+            <sparkle:shortVersionString>0.4.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# Photos Storage 0.4.3
+
+For Apple silicon Macs running **macOS 13 or later**.
+Runtime checks pass on macOS 15, 26, and 27. macOS 13 and 14 have not been
+runtime-tested.
+
+- Fixes setup for libraries where Photos has never saved an explicit storage choice. Switching between Download Originals and Optimize Mac Storage is no longer needed.
+- Requests Photos Full Access only when needed to verify that missing choice, with clear recovery when access is denied.
+- Keeps cleanup paused for Originals mode, unavailable settings, or iCloud settings changed during verification.
+
+Existing iCloud Photos and Optimize Mac Storage checks remain in place;
+unverifiable or disabled settings stop cleanup. Photos Storage asks macOS to
+release eligible local copies; it does not delete items
+from your photo library. The storage target is approximate.
+
+The app is Developer ID signed and notarized by Apple, with signed automatic
+updates. Unzip the download, move **Photos Storage.app** to **Applications**, and
+open it. Setup takes you to **System Settings → Photos Storage**.
+
+If a third-party settings pane appears blank after navigating away and back,
+reopen Photos Storage. macOS may display a wider window for third-party panes.
+]]></description>
+            <enclosure url="https://github.com/emieljanson/photos-storage/releases/download/v0.4.3/Photos-Storage-0.4.3-arm64.zip" length="4659055" type="application/octet-stream" sparkle:edSignature="Jq7aoOQpCpFjl+Rk54l6O2dHGnEgP+841mtLoRa6xWVIrZknYZcb5qAQdSm7MDunfPR3v3g3NjFXVv8UmOAfCA=="/>
+        </item>
+        <item>
             <title>0.4.1</title>
             <pubDate>Sat, 14 Nov 2026 11:37:13 +0100</pubDate>
             <sparkle:version>11</sparkle:version>
@@ -136,6 +167,6 @@ open Photos Storage again to reload it.
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: 6cxlL/QZoQDDQanVlAenwyoXQ2GHaD6IwHzRiZGrOBebgmUHNnyHE2aoHsLnLnT3pnyreJpu0AlNhYRRbk00Cg==
-length: 8020
+edSignature: ouuvxlQSkYUayaxhQ2ysOFL1LuPaG8R01IX7IGI6M0n/FH23KxFbLrvd2L7KyD90mrt3aEyBgh374VMG2wF0DA==
+length: 10023
 -->

@@ -4,7 +4,7 @@
 
 ## Install
 
-[Download Photos Storage 0.4.2](https://github.com/emieljanson/photos-storage/releases/download/v0.4.2/Photos-Storage-0.4.2-arm64.zip)
+[Download Photos Storage 0.4.3](https://github.com/emieljanson/photos-storage/releases/download/v0.4.3/Photos-Storage-0.4.3-arm64.zip)
 for Apple silicon and **macOS 13 or later**. See the
 [tested versions](COMPATIBILITY.md) for runtime verification details.
 

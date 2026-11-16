@@ -9,9 +9,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/emieljanson/photos-storage/releases/download/v0.4.2/Photos-Storage-0.4.2-arm64.zip"><strong>Download for Apple silicon</strong></a>
+  <a href="https://github.com/emieljanson/photos-storage/releases/download/v0.4.3/Photos-Storage-0.4.3-arm64.zip"><strong>Download for Apple silicon</strong></a>
   &nbsp;·&nbsp;
-  <a href="https://github.com/emieljanson/photos-storage/releases/tag/v0.4.2">Release notes</a>
+  <a href="https://github.com/emieljanson/photos-storage/releases/tag/v0.4.3">Release notes</a>
 </p>
 
 <p align="center">
