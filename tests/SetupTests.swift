@@ -14,6 +14,11 @@ state.libraryReady = true
 expect(setupStep(for: state) == .preferences, "Ask for only the remaining permission")
 state.prefetchReady = true
 expect(setupStep(for: state) == .attention, "Permissions alone must not claim safe setup")
+state.photosStatusAccess = .required
+expect(setupStep(for: state) == .photosStatus, "A missing saved choice must offer native Photos authorization")
+state.photosStatusAccess = .denied
+expect(setupStep(for: state) == .photosStatus, "Denied Photos access must provide a recovery step")
+state.photosStatusAccess = nil
 state.cleanupAllowed = true
 expect(setupStep(for: state) == .ready, "Confirmed access and safety finish setup")
 state.busy = true
@@ -23,6 +28,12 @@ state.libraryReady = nil
 expect(setupStep(for: state) == .attention, "Unknown access must never be treated as granted")
 state.prefetchReady = false
 expect(setupStep(for: state) == .attention, "Unknown library access must not skip ahead to the settings permission")
+state.photosStatusAccess = .required
+expect(setupStep(for: state) == .attention, "Native Photos authorization must not replace missing file access checks")
+state.libraryReady = false
+expect(setupStep(for: state) == .library, "The library permission must still come first")
+state.libraryReady = true
+expect(setupStep(for: state) == .preferences, "The settings permission must still precede optional Photos authorization")
 
 expect(launchDestination(arguments: [], setupCompleted: false) == .setup, "First interactive launch needs setup")
 expect(launchDestination(arguments: [], setupCompleted: true) == .settings, "Later launches open Settings")

@@ -1,13 +1,14 @@
 import Foundation
 
 enum SetupStep: Equatable {
-    case checking, library, preferences, attention, ready
+    case checking, library, preferences, photosStatus, attention, ready
 }
 
 func setupStep(for state: AgentState) -> SetupStep {
     if state.busy || state.lastCheckAt == nil { return .checking }
     if state.libraryReady == false { return .library }
     if state.libraryReady == true && state.prefetchReady == false { return .preferences }
+    if state.libraryReady == true && state.prefetchReady == true && state.photosStatusAccess != nil { return .photosStatus }
     if state.libraryReady != true || state.prefetchReady != true || !state.cleanupAllowed { return .attention }
     return .ready
 }

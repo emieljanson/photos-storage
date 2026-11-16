@@ -2,7 +2,11 @@ import Foundation
 import Darwin
 
 enum ControlAction: String, Codable, Sendable {
-    case setLimit, setAutomatic, setLogin, refresh, grantLibrary, grantPrefetch, openPhotos, showSetup, checkForUpdates, setUpdates
+    case setLimit, setAutomatic, setLogin, refresh, grantLibrary, grantPrefetch, grantPhotosStatus, openPhotos, showSetup, checkForUpdates, setUpdates
+}
+
+enum PhotosStatusAccess: String, Codable, Sendable {
+    case required, denied
 }
 
 struct ControlRequest: Codable, Sendable {
@@ -39,6 +43,7 @@ struct AgentState: Codable, Sendable {
     var canCheckForUpdates: Bool?
     var libraryReady: Bool?
     var prefetchReady: Bool?
+    var photosStatusAccess: PhotosStatusAccess?
     var cleanupAllowed = false
     var usedBytes: UInt64?
     var freeBytes: UInt64?

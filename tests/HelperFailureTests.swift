@@ -81,6 +81,15 @@ expect(!controller.automatic && !controller.state.cleanupAllowed,
        "An unverified iCloud configuration must still block cleanup and stop automatic monitoring")
 controller.stopOnError("helper_timeout")
 expect(!controller.automatic, "A timeout must never turn monitoring back on after a safety failure")
+for (code, access) in [("photos_status_access_required", PhotosStatusAccess.required), ("photos_status_access_denied", .denied)] {
+    controller.state.cleanupAllowed = true
+    controller.defaults.set(true, forKey: "automatic")
+    controller.stopOnError(code)
+    expect(controller.state.photosStatusAccess == access && !controller.state.cleanupAllowed && !controller.automatic,
+           "Missing Photos authorization must stop cleanup and offer the correct recovery step")
+}
+controller.stopOnError("icloud_optimization_unverified")
+expect(controller.state.photosStatusAccess == nil, "Unrelated failures must clear stale Photos authorization prompts")
 for code in ["photos_api_unavailable", "untested_macos"] {
     controller.state.cleanupAllowed = true
     controller.defaults.set(true, forKey: "automatic")

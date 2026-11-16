@@ -75,7 +75,23 @@ static NSNumber *PhotoLatestCloudEnablement(id log) {
     return enabled;
 }
 
-static PhotoSafetyState PhotoReadMetadataSafety(NSURL *library) {
+static PhotoSafetyState PhotoReadCloudMetadataSafety(int root, NSInteger mode) {
+    PhotoSafetyState unknown={NO,NO,-1};
+    int failure=0;
+    NSNumber *account=PhotoLatestCloudEnablement(PhotoReadPlist(root,@"private/com.apple.accountsd/cloudServiceEnableLog.plist",&failure));
+    NSNumber *daemon=PhotoLatestCloudEnablement(PhotoReadPlist(root,@"private/com.apple.photolibraryd/cloudServiceEnableLog.plist",&failure));
+    if (!account || !daemon) return unknown;
+    if (!account.boolValue || !daemon.boolValue) return (PhotoSafetyState){YES,NO,mode};
+    id status=PhotoReadPlist(root,@"resources/cpl/cloudsync.noindex/syncstatus.plist",&failure);
+    if (![status isKindOfClass:NSDictionary.class] || !PhotoIsBoolean(status[@"iCloudLibraryExists"]) || ![status[@"iCloudLibraryExists"] boolValue]) return unknown;
+    if (!PhotoReadMetadata(root,@"resources/cpl/cloudsync.noindex/cpl_enabled_marker",&failure)) return unknown;
+    if (PhotoReadMetadata(root,@"resources/cpl/disableICloudPhotos",&failure)) return (PhotoSafetyState){YES,NO,mode};
+    if (failure!=ENOENT) return unknown;
+    if (PhotoReadMetadata(root,@"resources/cpl/cloudsync.noindex/pauseICloudPhotos",&failure) || failure!=ENOENT) return unknown;
+    return (PhotoSafetyState){YES,YES,mode};
+}
+
+static PhotoSafetyState PhotoReadMetadataSafety(NSURL *library, PhotoSafetyState (^readEffectiveSettings)(void)) {
     PhotoSafetyState unknown={NO,NO,-1};
     int root=open(library.fileSystemRepresentation,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);
     if (root<0) return unknown;
@@ -86,24 +102,28 @@ static PhotoSafetyState PhotoReadMetadataSafety(NSURL *library) {
         id settings=[local valueForKeyPath:@"Library.CPL"];
         if (![settings isKindOfClass:NSDictionary.class]) return unknown;
         id storedMode=settings[@"PrefetchMode"];
-        // Require an explicitly recorded choice for this library. Missing mode
-        // is not treated as Apple's implicit default, and legacy global flags
-        // are not used: they remained unchanged in a real originals-mode test.
-        if (![storedMode isKindOfClass:NSNumber.class] || PhotoIsBoolean(storedMode) ||
-            CFNumberIsFloatType((__bridge CFNumberRef)storedMode)) return unknown;
-        NSInteger mode=[storedMode integerValue];
-        if (mode!=0 && mode!=1) return unknown;
-        NSNumber *account=PhotoLatestCloudEnablement(PhotoReadPlist(root,@"private/com.apple.accountsd/cloudServiceEnableLog.plist",&failure));
-        NSNumber *daemon=PhotoLatestCloudEnablement(PhotoReadPlist(root,@"private/com.apple.photolibraryd/cloudServiceEnableLog.plist",&failure));
-        if (!account || !daemon) return unknown;
-        if (!account.boolValue || !daemon.boolValue) return (PhotoSafetyState){YES,NO,mode};
-        id status=PhotoReadPlist(root,@"resources/cpl/cloudsync.noindex/syncstatus.plist",&failure);
-        if (![status isKindOfClass:NSDictionary.class] || !PhotoIsBoolean(status[@"iCloudLibraryExists"]) || ![status[@"iCloudLibraryExists"] boolValue]) return unknown;
-        if (!PhotoReadMetadata(root,@"resources/cpl/cloudsync.noindex/cpl_enabled_marker",&failure)) return unknown;
-        if (PhotoReadMetadata(root,@"resources/cpl/disableICloudPhotos",&failure)) return (PhotoSafetyState){YES,NO,mode};
-        if (failure!=ENOENT) return unknown;
-        if (PhotoReadMetadata(root,@"resources/cpl/cloudsync.noindex/pauseICloudPhotos",&failure) || failure!=ENOENT) return unknown;
-        return (PhotoSafetyState){YES,YES,mode};
+        // An absent choice requires a fresh native reply, never an inferred
+        // default. Invalid recorded values cannot be rescued by a fallback.
+        if (storedMode && (![storedMode isKindOfClass:NSNumber.class] || PhotoIsBoolean(storedMode) ||
+            CFNumberIsFloatType((__bridge CFNumberRef)storedMode))) return unknown;
+        NSInteger mode=storedMode ? [storedMode integerValue] : -1;
+        if (storedMode && mode!=0 && mode!=1) return unknown;
+        PhotoSafetyState cloud=PhotoReadCloudMetadataSafety(root,mode);
+        if (!cloud.verified || !cloud.cloudPhotosEnabled) return cloud;
+        if (!storedMode) {
+            if (!readEffectiveSettings) return unknown;
+            PhotoSafetyState effective=readEffectiveSettings();
+            // The native request may have taken time. A newly persisted choice
+            // or any other changed library setting invalidates this snapshot.
+            if (![local isEqual:PhotoReadPlist(root,@"private/com.apple.photolibraryd/appPrivateData.plist",&failure)]) return unknown;
+            if (effective.verified && effective.prefetchMode!=0 && effective.prefetchMode!=1) return unknown;
+            if (effective.verified) {
+                cloud=PhotoReadCloudMetadataSafety(root,effective.prefetchMode);
+                if (!cloud.verified || !cloud.cloudPhotosEnabled) return cloud;
+            }
+            return effective;
+        }
+        return cloud;
     } @catch (__unused NSException *exception) { return unknown; }
     @finally { close(root); }
 }

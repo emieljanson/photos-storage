@@ -1,3 +1,4 @@
+#pragma once
 #import <Foundation/Foundation.h>
 
 typedef struct {
@@ -6,11 +7,20 @@ typedef struct {
     NSInteger prefetchMode;
 } PhotoSafetyState;
 
+enum {
+    PhotoModeAccessRequired=-2,
+    PhotoModeAccessDenied=-3,
+    PhotoModeNativeUnavailable=-4
+};
+
 // The helper verifies Photos identifies mode 0 as "optimize" at runtime.
 // Missing replies and other modes never authorize an operation.
 static BOOL PhotoAnnotateSafety(PhotoSafetyState state, NSMutableDictionary *result) {
     NSString *reason=nil;
-    if (!state.verified) reason=@"icloud_optimization_unverified";
+    if (!state.verified && state.prefetchMode==PhotoModeAccessRequired) reason=@"photos_status_access_required";
+    else if (!state.verified && state.prefetchMode==PhotoModeAccessDenied) reason=@"photos_status_access_denied";
+    else if (!state.verified && state.prefetchMode==PhotoModeNativeUnavailable) reason=@"photos_settings_unavailable";
+    else if (!state.verified) reason=@"icloud_optimization_unverified";
     else if (!state.cloudPhotosEnabled) reason=@"icloud_photos_disabled";
     else if (state.prefetchMode==1) reason=@"storage_optimization_disabled";
     else if (state.prefetchMode!=0) reason=@"icloud_optimization_unverified";

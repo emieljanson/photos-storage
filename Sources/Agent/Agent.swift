@@ -2,6 +2,7 @@ import AppKit
 import CoreServices
 import ServiceManagement
 import UniformTypeIdentifiers
+import Photos
 
 @MainActor
 final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
@@ -144,11 +145,13 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
             } catch { model.error = error.localizedDescription }
         case .openPhotos:
             if let libraryPath { NSWorkspace.shared.open(URL(fileURLWithPath: libraryPath)) }
+        case .checkAgain: reconcile(rounds: 0, allowPurge: false)
         case .primary:
             switch model.step {
             case .checking: break
             case .library: grantLibraryAccess()
             case .preferences: grantPrefetchAccess()
+            case .photosStatus: grantPhotosStatusAccess()
             case .attention: reconcile(rounds: 0, allowPurge: false)
             case .ready:
                 openSettings()
@@ -259,6 +262,7 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
         case .grantPrefetch:
             guard !busy else { return }
             grantPrefetchAccess()
+        case .grantPhotosStatus: grantPhotosStatusAccess()
         case .openPhotos:
             if let libraryPath { NSWorkspace.shared.open(URL(fileURLWithPath: libraryPath)) }
         case .showSetup: showSetup()
@@ -269,6 +273,7 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
     }
 
     private func updateAccessState(_ run: HelperRun) {
+        state.photosStatusAccess = nil
         if run.reply?.ok == true && !run.failed {
             state.libraryReady = true
         } else if run.failureCode == "library_scan_unavailable" {
@@ -277,6 +282,25 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
             state.libraryReady = nil
         }
         state.prefetchReady = run.reply?.nativeProfileReadable
+    }
+
+    private func grantPhotosStatusAccess() {
+        guard !busy, state.photosStatusAccess != nil else { return }
+        let authorization = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        if authorization == .authorized {
+            reconcile(rounds: 0, allowPurge: false)
+        } else if authorization == .notDetermined {
+            busy = true
+            status = "Waiting for Photos access…"
+            Task { [weak self] in
+                _ = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+                guard let self else { return }
+                self.busy = false
+                self.reconcile(rounds: 0, allowPurge: false)
+            }
+        } else if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Photos") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     private func setLoginEnabled(_ enabled: Bool) {
@@ -465,7 +489,17 @@ final class PhotosStorageAgent: NSObject, NSApplicationDelegate {
             return
         }
         defaults.set(false, forKey: "automatic")
+        state.photosStatusAccess = nil
         switch code {
+        case "photos_status_access_required", "photos_status_access_denied":
+            state.cleanupAllowed = false
+            state.photosStatusAccess = code == "photos_status_access_required" ? .required : .denied
+            status = "Cleanup is paused. Allow Photos access to verify your storage setting without changing it."
+            state.safetyMessage = status
+        case "photos_settings_unavailable":
+            state.cleanupAllowed = false
+            status = "Cleanup is paused. Photos did not return its storage setting. Open Photos, then check again."
+            state.safetyMessage = status
         case "icloud_photos_disabled":
             state.cleanupAllowed = false
             status = "Cleanup is paused. Enable iCloud Photos in Photos › Settings › iCloud."

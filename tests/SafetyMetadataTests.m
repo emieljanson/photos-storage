@@ -20,8 +20,9 @@ int main(void) {
         NSDate *date=[NSDate dateWithTimeIntervalSinceNow:-10];
         NSArray *enabled=@[@{@"type":@"iCPL",@"timestamp":date,@"enabled":@YES}];
         __block unsigned checks=0;
+        __block PhotoSafetyState (^nativeReader)(void)=nil;
         BOOL (^check)(BOOL)=^BOOL(BOOL expected) {
-            PhotoSafetyState state=PhotoReadMetadataSafety(library);
+            PhotoSafetyState state=PhotoReadMetadataSafety(library,nativeReader);
             __block unsigned operations=0;
             NSMutableDictionary *result=[NSMutableDictionary dictionary];
             BOOL allowed=PhotoRunWithSafetyCheck(^{return state;},^{operations++;},result);
@@ -51,6 +52,48 @@ int main(void) {
             write(library,daemon,[cplEnabled arrayByAddingObject:@{@"type":@"CPL",@"timestamp":later,@"enabled":@NO}]); if(!check(NO))return 22;
             write(library,daemon,@[@{@"type":@"CPL",@"timestamp":date,@"enabled":@"true"}]); if(!check(NO))return 23;
             write(library,account,enabled); write(library,daemon,enabled);
+            __block unsigned nativeReads=0;
+            __block PhotoSafetyState nativeState={YES,YES,0};
+            nativeReader=^{nativeReads++; return nativeState;};
+            if(!check(YES) || nativeReads!=0) return 24;
+            write(library,local,@{@"Library":@{@"CPL":@{@"iCPLEnabled":@YES}}});
+            if(!check(YES) || nativeReads!=1) {
+                fprintf(stderr,"A missing recorded choice must use a confirmed native optimize reply.\n");return 25;
+            }
+            nativeState=(PhotoSafetyState){YES,YES,1}; if(!check(NO))return 26;
+            nativeState=(PhotoSafetyState){YES,NO,0}; if(!check(NO))return 27;
+            nativeState=(PhotoSafetyState){NO,NO,-1}; if(!check(NO))return 28;
+            nativeState=(PhotoSafetyState){YES,YES,2}; if(!check(NO))return 29;
+            nativeState=(PhotoSafetyState){NO,NO,PhotoModeAccessRequired}; if(!check(NO))return 30;
+            nativeState=(PhotoSafetyState){YES,YES,0};
+            write(library,daemon,@[]);
+            unsigned before=nativeReads;
+            if(!check(NO) || nativeReads!=before)return 31;
+            write(library,daemon,enabled);
+            write(library,@"resources/cpl/disableICloudPhotos",NSData.data);
+            if(!check(NO) || nativeReads!=before)return 32;
+            [fm removeItemAtURL:[library URLByAppendingPathComponent:@"resources/cpl/disableICloudPhotos"] error:nil];
+            write(library,local,@{@"Library":@{@"CPL":@{@"PrefetchMode":@"0"}}});
+            if(!check(NO) || nativeReads!=before)return 33;
+            write(library,local,@{@"Library":@{@"CPL":@{}}});
+            nativeReader=^{
+                write(library,@"resources/cpl/disableICloudPhotos",NSData.data);
+                return (PhotoSafetyState){YES,YES,0};
+            };
+            if(!check(NO)) { fprintf(stderr,"iCloud disabled during the native request must block cleanup.\n");return 35; }
+            [fm removeItemAtURL:[library URLByAppendingPathComponent:@"resources/cpl/disableICloudPhotos"] error:nil];
+            nativeReader=^{
+                write(library,daemon,@[@{@"type":@"CPL",@"timestamp":NSDate.date,@"enabled":@NO}]);
+                return (PhotoSafetyState){YES,YES,0};
+            };
+            if(!check(NO)) { fprintf(stderr,"New disable logs during the native request must block cleanup.\n");return 36; }
+            write(library,daemon,enabled);
+            nativeReader=^{
+                write(library,local,@{@"Library":@{@"CPL":@{@"PrefetchMode":@1}}});
+                return (PhotoSafetyState){YES,YES,0};
+            };
+            if(!check(NO))return 34;
+            nativeReader=nil;
             write(library,local,@{@"Library":@{@"CPL":@{@"PrefetchMode":@1}}}); if(!check(NO))return 2;
             write(library,local,@{@"Library":@{@"CPL":@{}}}); if(!check(NO))return 3;
             write(library,local,@{@"Library":@{@"CPL":@{@"PrefetchMode":@"0"}}}); if(!check(NO))return 4;

@@ -64,7 +64,9 @@ open -a 'Photos Storage' --args --setup
 
 - Measures allocated files in the registered System Photo Library.
 - Confirms iCloud Photos and Optimize Mac Storage using small, per-library
-  settings and status files. Unknown or disabled settings block cleanup.
+  settings and status files. If a storage mode has never been saved, it uses
+  a fresh native Photos settings reply with optional Photos authorization.
+  Unknown or disabled settings block cleanup.
 - Adjusts `PLPrefetchMinimumFreeDiskGB` to discourage optional prefetch above
   the target, with a minimum working-space allowance of 13 GiB.
 - Asks only `com.apple.photolibraryd.cacheDelete` to release eligible local
@@ -103,6 +105,17 @@ helper timeouts, the Objective-C-to-Swift command format, command validation,
 private status storage, setup progression, silent login routing, and safe
 settings-pane installation and updates. Build scripts treat compiler warnings as errors
 and verify the local code signatures.
+
+The metadata tests cover a missing saved storage choice with authorized native
+replies, originals mode, denied access, invalid metadata, and settings changed
+during the read. `NativeSettingsTests.m` executes this OS's real Photos settings
+getters on encoded reply fixtures without opening a personal library.
+`tools/photos-settings-probe.m` supports a read-only live check; compile it with
+Cocoa and Photos and run it from a Photos-authorized app bundle. Only its
+explicit `--request-access` option requests permission. `--check-helper PATH`
+checks the same read from a child executable. The probe does not call cleanup
+or change Photos settings. Helper replies and local diagnostics record the
+mode source and Photos authorization status, without photo content.
 
 The opt-in `tests/run-update-integration.py` test uses an isolated app and a
 local update server. It verifies rejection of a tampered archive, a signed

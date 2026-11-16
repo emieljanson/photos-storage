@@ -20,6 +20,15 @@ Setup asks only for access that is missing:
    Click **Allow Library** so its local storage can be measured.
 2. **Photos Settings** — the settings file is already selected. Click
    **Allow Settings** so optional downloads can be budgeted.
+3. **Photos Access**, only if Photos has not saved a storage choice — choose
+   **Allow Photos Access…**, then allow **Full Access** in the macOS prompt.
+   Photos Storage uses this access only to read the effective storage setting.
+   You do not need to switch between Download Originals and Optimize Mac Storage.
+
+If Photos access was denied or limited, choose **Open Access Settings**, allow
+Full Access under **Privacy & Security → Photos**, then choose **Check Again**.
+Cleanup stays paused until the setting is verified. Libraries with a recorded
+storage choice do not need this additional permission.
 
 Each permission is explained before its macOS window opens. Access is checked
 against the expected library or settings file before it is saved.

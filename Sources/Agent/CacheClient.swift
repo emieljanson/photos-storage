@@ -16,6 +16,8 @@ struct CacheReply: Decodable, Sendable {
     var prefetchReserveGiB: Int?
     let cleanupAllowed: Bool?
     let safetyErrorCode: String?
+    let optimizationModeSource: String?
+    let photosStatusAuthorization: Int?
 
     enum CodingKeys: String, CodingKey {
         case ok
@@ -26,6 +28,7 @@ struct CacheReply: Decodable, Sendable {
         case libraryPath = "library_path"
         case nativeProfileReadable = "native_profile_readable", prefetchReserveGiB = "prefetch_reserve_gib"
         case cleanupAllowed = "cleanup_allowed", safetyErrorCode = "safety_error_code"
+        case optimizationModeSource = "optimization_mode_source", photosStatusAuthorization = "photos_status_authorization"
     }
 }
 
@@ -173,6 +176,8 @@ func runCacheHelper(path: String, bytes: UInt64?, safetyOnly: Bool = false) -> H
     if let status = run.exitStatus { UserDefaults.standard.set(status, forKey: "lastHelperExitStatus") }
     UserDefaults.standard.set(run.failureCode ?? "none", forKey: "lastHelperErrorCode")
     var reply = run.reply
+    UserDefaults.standard.set(reply?.optimizationModeSource ?? "unavailable", forKey: "lastOptimizationModeSource")
+    UserDefaults.standard.set(reply?.photosStatusAuthorization, forKey: "lastPhotosStatusAuthorization")
     let reserve = readNativePrefetch()
     reply?.nativeProfileReadable = reserve != nil
     reply?.prefetchReserveGiB = reserve

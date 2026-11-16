@@ -40,6 +40,29 @@ calling it. The app never selects media files for deletion or calls an asset
 deletion API. An unreadable settings file remains an access failure; an absent
 prefetch override in a readable settings file uses Photos' default behavior.
 
+The storage **mode** is checked separately from that prefetch budget. If
+`Library.CPL.PrefetchMode` is absent in a valid per-library settings file, the
+helper asks Photos for its effective mode through a fresh, library-bound
+`PLAssetsdClient.cloudClient.getCPLSettings` read. Setup offers Photos Full
+Access only for this case. Missing permission, unavailable replies, changed
+method signatures, contradictory getters, and unknown modes never permit
+cleanup. The existing iCloud logs and markers must still pass, and the library
+settings are reread after the request to reject a concurrent settings change.
+
+The native reply's `isICPLEnabled` flag is used with `prefetchMode` and
+`isKeepOriginalsEnabled`. `isCloudPhotoLibraryEnabled` depends on additional
+library context and returned false in a real authorized client even when
+`isICPLEnabled` was true. `hasPersistedPrefetchMode` is not used on the detached
+reply. No absent mode is interpreted as an implicit default.
+
+On macOS 27.2, a read-only live test returned mode 0 with iCloud enabled from
+both the authorized app and its child helper. Without Photos authorization,
+the service refused the read with Photos error 41011. Isolated tests execute
+the OS's real settings getters for optimize, originals, unknown modes, and
+enabled/disabled iCloud using encoded daemon-reply fixtures. They do not change
+a real library's mode or perform cleanup. The new fallback has not yet been
+live-tested on other macOS versions.
+
 These integrations are private macOS interfaces. Capability checks allow
 compatible OS updates and stop automatic optimization when an interface changes.
 They cannot guarantee how much space macOS will release. The storage target
