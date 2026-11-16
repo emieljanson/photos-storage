@@ -277,7 +277,7 @@ negative control returned none. Urgencies 1–2 reported zero bytes, and 3–4
 reported 126,976 bytes. Its filesystem-purge route accepts a service/type, volume
 and byte budget, with no chosen attachment GUID or path selector found. It can
 therefore select existing personal attachments before a generated test item.
-No broker purge or user-managed-cache policy change was performed.
+No real-provider broker purge or user-managed-cache policy change was performed.
 
 Further inspection of the installed broker confirmed that a correctly typed,
 nonempty service-name array filters operation dispatch and survives the fallback
@@ -289,6 +289,17 @@ callback contract and process-exit cleanup were not established, so the prepared
 fixture refuses execution before loading the framework. No provider was
 registered. Even successful synthetic routing would not isolate a real Messages
 purge to the two test attachments: its service scope includes personal items.
+
+A separate negative control avoided registration. Installed-code inspection
+traced the whole request dictionary from `CacheDeletePurgeSpaceWithInfoSync`
+through XPC to the broker, confirming that the service array is preserved.
+An independent review checked both purge phases and the unknown service's
+exclusion from the filesystem-helper map. A one-shot executable rechecked the
+installed-code fingerprint before making exactly one request for a fixed,
+unregistered service, with amount and urgency set to one and escalation disabled.
+The real broker replied once, retained that exact service array and reported
+zero bytes. This establishes access to the separate broker API on the test build;
+it tests no native Messages provider, eligibility, cloud recovery or savings.
 
 Native CloudKit record-fetch and validation machinery exists in another manager,
 but this investigation did not establish that every broker purge freshly passes
@@ -444,12 +455,132 @@ error at that protected location. The working route uses the system tool's
 deprecated authentication-descriptor interface. It proves narrow mounting
 access, not permission to read or migrate personal Messages history.
 
+A backup-only launchd socket-activation experiment kept the listening socket
+available across an idle worker restart. The replacement worker deliberately
+waited eight seconds before accepting: TCP connected in 0.27 milliseconds and
+the full, hash-matching movie arrived after 9.64 seconds in this single run.
+Normal cleanup removed the exact test job and released its port. This verifies
+queued new connections, not survival of an accepted stream, native playback,
+iCloud permissions or a quota. The first attempt failed because a socket-state
+check was unsupported on this Mac; a public own-descriptor libproc check fixed
+that test without accepting or consuming a queued connection.
+
+The next test killed an owned worker after it had flushed 1,024 of the declared
+61,864 movie bytes. A fresh instrumented repeat found that the mounted file was
+regular but only 1,024 bytes long. A second open on the same mount returned that
+same size without fetching the remainder. Both reads failed the unchanged size
+guard. A separate repeat positively verified abortive TCP linger before the kill;
+it produced the same truncated cache result. Neither the original operation nor
+reopening recovered transparently. All readers exited, each mount was normally
+removed, and the exact launchd jobs and listeners were unloaded.
+
+This behavior is consistent with an early-EOF path in Apple's published
+[WebDAV client](https://github.com/apple-oss-distributions/webdavfs/blob/main/mount.tproj/webdav_network.c#L1488):
+before the first page fills, zero bytes ends the initial read, and the resulting
+cache can be marked finished. This is a source-based explanation, not proof that
+every installed instruction matches that older published implementation.
+Changing TCP close behavior did not fix the observed failure, so this backend
+does not meet the archive's recovery requirement.
+
 All original files and backups remain retained. No net space saving, automatic
 quota, unattended recovery, login ordering or safe uninstall is established by
 these passes. Personal migration remains disabled. Routine updates would also
 need a verified provider handoff: restoring all archived files for every update
 would defeat the storage benefit and could exceed free space. Disable/uninstall
 needs a separate resumable restore path that keeps serving remaining items.
+
+### Public filesystem alternative
+
+Apple's [FSGenericURLResource](https://developer.apple.com/documentation/fskit/fsgenericurlresource)
+supports a virtual URL-backed filesystem from macOS 26, without requiring a block
+device. On macOS 27,
+[FSVolume.DataCacheHandler](https://developer.apple.com/documentation/fskit/fsvolume/datacachehandler)
+can grant no data caching; the
+[cache-state API](https://developer.apple.com/documentation/fskit/fsvolume/setcachestate(for:cachemode:coherencytype:action:))
+also supports invalidation without unmounting. These are public alternatives to
+WebDAV's client cache, not a tested iCloud or Messages quota.
+
+Apple lists [FSKit Module support for Developer ID](https://developer.apple.com/help/account/reference/supported-capabilities-macos/).
+Its [passthrough sample](https://developer.apple.com/documentation/fskit/building-a-passthrough-file-system)
+uses an ExtensionKit filesystem module, user enablement in System Settings, and
+an ordinary mount directory. No FUSE kernel extension, partition or reduced
+system-security setting is inherent in this route. A generated-file prototype
+now activates and mounts read-only with an Apple-issued Developer ID profile.
+Local signature verification alone was insufficient: macOS rejected the first
+build because that restricted entitlement had no eligible provisioning profile.
+
+Two startup defects were then isolated. The manual compiler build entered the
+Swift main function before ExtensionKit initialization; Xcode's extension target
+uses `NSExtensionMain`. The next build reached activation but deadlocked: FSKit
+synchronously requested the root's attributes from the activation reply while
+the prototype still held its item lock. A sampled stack confirmed the recursive
+lock wait. Replying outside that lock allowed the mount to complete.
+
+The mounted namespace contained only generated text and a generated movie.
+Three fresh full reads returned the exact 61,864 bytes and SHA-256, and
+nonsequential reads and EOF checks passed with stable metadata. Live logs showed
+`noCache` grants and a new complete provider read on each fresh movie open.
+QuickTime displayed the moving movie through the virtual path. Normal unmount,
+remount, fresh hash checks and a final normal unmount also passed.
+
+The next pass used a security-scoped path resource for one fixed generated movie
+in iCloud Drive. The source began dataless with zero allocated bytes. The module
+downloaded it, verified all 61,864 bytes against the frozen SHA-256 and retained
+the payload in memory. Releasing the source download again left the virtual file
+readable; complete reads, ranges and EOF checks passed, and QuickTime played
+moving video while the Drive source remained dataless. This establishes a small
+cloud-backed read primitive, not a bounded cache for arbitrary attachments.
+
+Stopping the owned provider before a read produced an explicit I/O error without
+returning a partial payload. macOS detached the failed mount. An explicit remount
+fetched the cloud fixture again and passed the complete hash, range and EOF
+checks. Interruption during a read, transparent recovery of already-open handles,
+large-file memory bounds, quota behavior and safe uninstall remain unproven.
+No notarization or production feature is claimed.
+
+Several build copies with the same extension identifier also interfered with
+discovery during the next test. Strict signature verification alone did not
+prevent stale or absent discovery results. Retaining the snapshots under names
+that were not app bundles and registering one signed installed copy restored
+discovery and mounting. Keep one registered test copy when repeating these tests.
+
+Controlling that filesystem's cache would not by itself bound iCloud Drive
+hydration, another app's copies, snapshots or swap. Source residency still needs
+its own verified eviction and accounting. The existing app's macOS 13 deployment
+target is unchanged; the proposed cache-control prototype targets macOS 27.
+
+### Messages: access to redirected archive files
+
+By the next day, the two fixed ordinary generated attachments reported finished
+transfer and synced state with server metadata. A separate attended test required
+that state, exact GUID/path/reference ownership, the retained original directory
+and file, and two independent backups before linking the generated movie's GUID
+directory to a one-file archive view. No personal attachment was redirected.
+
+An FSKit mount outside the Messages folder returned the expected file metadata,
+but Messages did not produce attributable provider reads. A second mount in a
+cache folder gave a more specific failure: Messages logged
+`sandbox_extension_issue_file` errors with `Operation not permitted` for the
+redirected movie. Quick Look displayed generic video metadata instead of a video
+preview. A subsequent direct-read control returned the complete matching hash
+and emitted a fresh provider read, confirming that this control could observe
+payload reads. Mounting directly in the owned Messages test folder failed at
+the final mount step with `Operation not permitted`.
+
+A further control removed the custom filesystem entirely. A new extra copy of
+the same generated movie in a single-file iCloud Drive folder passed upload
+verification, download release to zero allocated bytes and a complete matching
+read. After another download release, the generated Messages GUID directory was
+temporarily linked directly to that folder. Messages again logged access-delegation
+errors and showed only generic Quick Look metadata; the Drive file remained
+dataless. This route did not establish working native playback either.
+
+These results establish an access barrier in the tested redirection routes.
+They do not establish that every possible placement fails. A supported native-app
+access path, bounded cache and recovery/uninstall behavior are still required
+before personal migration. Every generated GUID directory and file was restored
+with its original inodes and complete SHA-256. All test mounts were detached,
+the FSKit test module was disabled, and original files plus backups were retained.
 
 ## Mail investigation
 
