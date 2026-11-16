@@ -15,8 +15,10 @@ below. A modeled IMAP window reclaimed and restored Mail files across two cycles
 A temporary real Gmail window reclaimed 1.64 GB and survived a Mail restart;
 restoring Unlimited reset the native index, then restored all 117,821 All Mail rows.
 A native Messages purge request was rejected for missing Apple entitlements.
-A separate generated Drive-backed archive recovered media, with helper, cache
-and recovery limitations described below.
+A separate generated Drive-backed archive recovered media. A read-only FSKit
+archive now plays a generated movie through Messages, including after an explicit
+remount following provider failure. Its access, cache and recovery limits are
+described below.
 
 **iCloud Drive and iCloud-synced Books downloads are supported in this branch.**
 Options → iCloud Downloads → Manage Downloads opens a small native window.
@@ -33,7 +35,7 @@ The public 0.4.1 download does not include this new feature yet.
 | --- | --- | --- | --- |
 | Photos | Existing native Photos cache service | Existing safety and runtime regression tests still pass | Keep the existing optimization behavior |
 | iCloud Drive regular files, including synced Desktop/Documents | Official `FileManager.evictUbiquitousItem(at:)` | Real upload, eviction to a cloud-only placeholder, redownload and SHA-256 comparison; native UI and signed app worker tested | Implement manual selection of uploaded regular files; package-format iWork documents remain excluded |
-| Messages / iMessage | Native purge mechanisms exist; a separate managed Drive archive was tested | The direct native purge was rejected for missing entitlements. Generated ordinary images and movies opened from cloud-only archive sources; a full provider outage left an existing video player stuck despite recovered transport | Block native cleanup and personal migration; automatic complete recovery and cache quotas remain unproven |
+| Messages / iMessage | Native purge mechanisms exist; a separate managed Drive archive was tested | Direct native purge was rejected. A generated movie played through a read-only FSKit mount in Messages' allowed cache directory; an interrupted read returned an I/O error, and reopening after an explicit remount restored complete playback | Block native cleanup and personal migration; automatic recovery, native large-file cache bounds and safe uninstall remain unproven |
 | Mail / iCloud Mail | A Gmail message-count window can reduce the native mirror | A modeled IMAP window passed two cycles. A temporary real Gmail window reclaimed 1.64 GB, persisted across restart, and triggered native reset/backfill when reverted | No Mail quota or cleanup feature shipped; Gmail integration needs account-wide UX and Google's scope verification |
 | Music | Native Remove Download client found; read-only connection works | Exact persistent-ID payload verified against Apple's storage extension. A real catalogue download test was blocked by Apple's associated-device limit | Do not enable removal without a successful download/removal/restore test |
 | TV | Remove Download exists in TV | Official UI semantics and local scripting dictionary inspected; home videos can be local-only | Manual native-app action only; not runtime-tested |
@@ -534,9 +536,10 @@ cloud-backed read primitive, not a bounded cache for arbitrary attachments.
 Stopping the owned provider before a read produced an explicit I/O error without
 returning a partial payload. macOS detached the failed mount. An explicit remount
 fetched the cloud fixture again and passed the complete hash, range and EOF
-checks. Interruption during a read, transparent recovery of already-open handles,
-large-file memory bounds, quota behavior and safe uninstall remain unproven.
-No notarization or production feature is claimed.
+checks. A later interrupted-read test and native recovery test are described
+below. Transparent recovery of already-open handles, native large-file memory
+bounds, quota behavior and safe uninstall remain unproven. No notarization or
+production feature is claimed.
 
 Several build copies with the same extension identifier also interfered with
 discovery during the next test. Strict signature verification alone did not
@@ -575,12 +578,82 @@ temporarily linked directly to that folder. Messages again logged access-delegat
 errors and showed only generic Quick Look metadata; the Drive file remained
 dataless. This route did not establish working native playback either.
 
-These results establish an access barrier in the tested redirection routes.
-They do not establish that every possible placement fails. A supported native-app
-access path, bounded cache and recovery/uninstall behavior are still required
-before personal migration. Every generated GUID directory and file was restored
-with its original inodes and complete SHA-256. All test mounts were detached,
-the FSKit test module was disabled, and original files plus backups were retained.
+The next test changed only the mount location. Messages' signed entitlements
+allow its own cache directory. Placing the same signed module's mount inside that
+directory produced a real movie preview in Messages and moving playback in
+QuickTime through the redirected URL. Fresh provider logs covered all 61,864
+bytes, with `noCache` grants; the iCloud source remained dataless with zero local
+allocated bytes. This resolves the access barrier for this generated movie on
+this Mac without changing Messages or its permissions.
+
+An owned reader then consumed 1,024 bytes before the test stopped the provider.
+The next read returned `EIO`, rather than treating the prefix as a complete file.
+macOS detached the failed mount. An explicit remount returned the complete
+matching SHA-256. Without restarting Messages, reopening the attachment then
+played the entire three-second movie in QuickTime. This is recovery of a new
+open after an explicit remount, not transparent recovery of an existing handle
+or an implemented automatic watchdog.
+
+The module still retained the whole small movie in memory. Its native playback
+test proves neither a storage quota nor bounded memory for large attachments.
+Other attachment families, bounded native content loading, automatic recovery
+and safe uninstall remain requirements before personal migration. Every
+generated GUID directory and file was restored with its original inodes and
+complete SHA-256. All test mounts were normally detached, the FSKit test module
+was disabled, and original files plus backups were retained.
+
+### Bounded content loading and native cache pressure
+
+A separate generated 8 MiB payload was split into eight 1 MiB iCloud Drive
+files. A headless reader streamed it in requests of at most 64 KiB, matched the
+complete SHA-256 and checked boundary reads. Its retained content cache peaked
+at 1 MiB. Managed source-file allocation peaked at 1 MiB and returned to zero
+after each cloud load. Increasing the cache to 2 MiB and shrinking it to 1 MiB
+immediately reduced retained content to the smaller budget. Five isolated tests
+also passed for cross-chunk reads, LRU shrinking, damaged or short content,
+missing chunks, invalid ranges and EOF. Missing or damaged content produces an
+error, rather than returning a successfully truncated response.
+
+The initial live run stopped because a current file still reported an active
+download. A later run encountered a native busy error immediately after a
+download finished. Bounded waits for completed transfers and a fresh eligibility
+and identity check on a busy retry allowed the complete test to pass. The reader
+stops if release cannot be confirmed; it does not keep hydrating more source
+files after an unsuccessful release.
+
+The same approach was then tested inside the signed FSKit module, using eight
+generated chunks for the existing 61,864-byte movie. Each chunk is verified
+before use, and the scope to the one generated source directory is held for the
+volume's lifetime. There is no personal-file scan or migration.
+
+An 8 KiB cache returned the entire matching movie to a direct reader, but failed
+the native usability test. Messages repeatedly requested the beginning and end
+of the file; the small cache evicted those ranges between requests. Logs recorded
+75 chunk loads and 34 completed reads while native UI calls timed out. The test
+was stopped and the original generated attachment restored. This is a real
+download/evict loop at an impractically small budget, not a usable result.
+
+Changing only the content-cache budget to 32 KiB allowed Messages to display the
+movie preview and open the exact virtual URL in QuickTime. Playback advanced
+from zero through the full three-second duration with visibly moving video.
+At the playback capture, provider logs recorded 163 reads covering the complete movie and 18 chunk
+loads. Retained content peaked at 32 KiB; managed iCloud source-file allocation
+peaked at 8 KiB and finished at zero. No direct virtual payload read preceded
+this native test.
+
+The first minute after playback recorded two further reads and three chunk
+loads. A subsequent 61-sample, one-minute observation with both native windows
+still open recorded no reads, no chunk downloads and zero source-file allocation
+throughout. This is a short settled observation, not a long-term loop guarantee.
+After the test, the original generated attachment was restored with its original
+directory and file inodes and SHA-256. The mount was normally detached and the
+test module disabled; originals and backups were retained.
+
+These tests establish bounded managed content for one small movie, not a
+production Messages quota or a maximum for whole-process memory, reply buffers,
+swap, File Provider internals or other native copies. A practical minimum must
+cover the native working set. Larger media, more attachment families, automatic
+recovery and a verified migration/uninstall transaction remain untested.
 
 ## Mail investigation
 
