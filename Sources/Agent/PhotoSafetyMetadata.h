@@ -113,8 +113,8 @@ static PhotoSafetyState PhotoReadMetadataSafety(NSURL *library, PhotoSafetyState
         if (!storedMode) {
             if (!readEffectiveSettings) return unknown;
             PhotoSafetyState effective=readEffectiveSettings();
-            // The native request may have taken time. A newly persisted choice
-            // or any other changed library setting invalidates this snapshot.
+            // Reject changes to appPrivateData.plist while the native request
+            // was in flight, including a newly persisted storage choice.
             if (![local isEqual:PhotoReadPlist(root,@"private/com.apple.photolibraryd/appPrivateData.plist",&failure)]) return unknown;
             if (effective.verified && effective.prefetchMode!=0 && effective.prefetchMode!=1) return unknown;
             if (effective.verified) {

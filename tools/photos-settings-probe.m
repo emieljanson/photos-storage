@@ -5,7 +5,10 @@
 #import <dlfcn.h>
 #import <objc/message.h>
 #import <unistd.h>
+#import <fcntl.h>
+#import <signal.h>
 #import "../Sources/Agent/PhotoEffectiveSettings.h"
+#import "../Sources/Agent/PhotoSafetyMetadata.h"
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
@@ -21,15 +24,38 @@ int main(int argc, const char *argv[]) {
         } else if (argc==3 && !strcmp(argv[1],"--check-helper")) {
             NSTask *helper=[NSTask new];
             helper.executableURL=[NSURL fileURLWithPath:@(argv[2])];
+            helper.arguments=@[@"--safety"];
             NSPipe *output=NSPipe.pipe;
             helper.standardOutput=output;
+            dispatch_semaphore_t finished=dispatch_semaphore_create(0);
+            helper.terminationHandler=^(NSTask *task) { (void)task; dispatch_semaphore_signal(finished); };
             NSError *error=nil;
             if (![helper launchAndReturnError:&error]) return 2;
-            NSData *data=[output.fileHandleForReading readDataToEndOfFile];
+            if (dispatch_semaphore_wait(finished,dispatch_time(DISPATCH_TIME_NOW,20*NSEC_PER_SEC))) {
+                if (helper.running) [helper terminate];
+                if (dispatch_semaphore_wait(finished,dispatch_time(DISPATCH_TIME_NOW,NSEC_PER_SEC)) && helper.running) {
+                    kill(helper.processIdentifier,SIGKILL);
+                }
+                puts("{\"error\":\"helper_timeout\"}");
+                return 124;
+            }
             [helper waitUntilExit];
-            fwrite(data.bytes,1,data.length,stdout);
+            int fd=output.fileHandleForReading.fileDescriptor;
+            int flags=fcntl(fd,F_GETFL);
+            if (flags<0 || fcntl(fd,F_SETFL,flags|O_NONBLOCK)<0) return 2;
+            char buffer[4096];
+            NSUInteger total=0;
+            for (;;) {
+                ssize_t count=read(fd,buffer,sizeof(buffer));
+                if (count<0 && errno==EINTR) continue;
+                if (count<0 && errno!=EAGAIN && errno!=EWOULDBLOCK) return 2;
+                if (count<=0) break;
+                total+=(NSUInteger)count;
+                if (total>65536) return 2;
+                fwrite(buffer,1,(size_t)count,stdout);
+            }
             return helper.terminationStatus;
-        } else if (argc!=1) { return 2; }
+        } else if (argc!=1 && !(argc==2 && !strcmp(argv[1],"--safety"))) { return 2; }
         alarm(20);
         dlopen("/System/Library/PrivateFrameworks/PhotoLibraryServices.framework/PhotoLibraryServices",RTLD_NOW|RTLD_LOCAL);
         SEL selector=NSSelectorFromString(@"systemPhotoLibraryURL");
@@ -40,8 +66,9 @@ int main(int argc, const char *argv[]) {
         NSMutableDictionary *result=[@{@"authorization":@([PHPhotoLibrary authorizationStatusForAccessLevel:PHAccessLevelReadWrite]),
             @"verified":@(state.verified),@"prefetch_mode":@(state.prefetchMode)} mutableCopy];
         __block BOOL operation=NO;
-        PhotoRunWithSafetyCheck(^{return state;},^{operation=YES;},result);
-        result[@"would_allow_cleanup"]=@(operation);
+        PhotoSafetyState metadata=PhotoReadMetadataSafety(url,^{return state;});
+        PhotoRunWithSafetyCheck(^{return metadata;},^{operation=YES;},result);
+        result[@"metadata_allows_cleanup"]=@(operation);
         NSData *data=[NSJSONSerialization dataWithJSONObject:result options:NSJSONWritingSortedKeys error:nil];
         if (!data) return 3;
         fwrite(data.bytes,1,data.length,stdout); fputc('\n',stdout);

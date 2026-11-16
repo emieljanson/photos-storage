@@ -65,8 +65,8 @@ open -a 'Photos Storage' --args --setup
 - Measures allocated files in the registered System Photo Library.
 - Confirms iCloud Photos and Optimize Mac Storage using small, per-library
   settings and status files. If a storage mode has never been saved, it uses
-  a fresh native Photos settings reply with optional Photos authorization.
-  Unknown or disabled settings block cleanup.
+  a fresh native Photos settings reply requiring Photos Full Access.
+  Missing access, unknown or disabled settings block cleanup.
 - Adjusts `PLPrefetchMinimumFreeDiskGB` to discourage optional prefetch above
   the target, with a minimum working-space allowance of 13 GiB.
 - Asks only `com.apple.photolibraryd.cacheDelete` to release eligible local

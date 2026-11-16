@@ -63,6 +63,13 @@ enabled/disabled iCloud using encoded daemon-reply fixtures. They do not change
 a real library's mode or perform cleanup. The new fallback has not yet been
 live-tested on other macOS versions.
 
+A separate macOS 27.2 test used a fresh app without file bookmarks, before and
+after granting Photos Full Access and again from its child helper. Library
+measurement worked in both states. Reading the Photos daemon preferences,
+opening that file for writing, and the production budget read stayed denied
+with `EPERM`. Photos authorization therefore does not replace settings-file
+access for the current budget implementation. The real budget was not changed.
+
 These integrations are private macOS interfaces. Capability checks allow
 compatible OS updates and stop automatic optimization when an interface changes.
 They cannot guarantee how much space macOS will release. The storage target

@@ -129,7 +129,7 @@ struct SetupView: View {
                 if attention {
                     Button("Open Photos") { model.action(.openPhotos) }
                 }
-                if model.step == .photosStatus && model.state.photosStatusAccess == .denied {
+                if model.started && model.step == .photosStatus && model.state.photosStatusAccess == .denied {
                     Button("Check Again") { model.action(.checkAgain) }
                 }
                 if model.openingSettings || (model.started && model.step == .checking) {
