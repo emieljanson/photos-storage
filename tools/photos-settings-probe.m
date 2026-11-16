@@ -27,6 +27,7 @@ int main(int argc, const char *argv[]) {
             helper.arguments=@[@"--safety"];
             NSPipe *output=NSPipe.pipe;
             helper.standardOutput=output;
+            helper.standardError=NSFileHandle.fileHandleWithNullDevice;
             dispatch_semaphore_t finished=dispatch_semaphore_create(0);
             helper.terminationHandler=^(NSTask *task) { (void)task; dispatch_semaphore_signal(finished); };
             NSError *error=nil;
