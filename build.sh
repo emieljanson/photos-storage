@@ -7,6 +7,9 @@ output_dir="${PHOTOS_STORAGE_BUILD_DIR:-$HOME/Library/Caches/PhotosStorage/build
 sign_identity="${PHOTOS_STORAGE_SIGN_IDENTITY:--}"
 target='arm64-apple-macos13.0'
 sign_options=(--force --sign "$sign_identity" --options runtime)
+# The hardened runtime silently refuses Photos access without this entitlement:
+# no prompt appears and the app never shows up under Privacy & Security > Photos.
+photos_entitlements=(--entitlements "$source_dir/Sources/Agent/PhotosStorage.entitlements")
 if [[ "$sign_identity" != '-' ]]; then sign_options+=(--timestamp); fi
 mkdir -p "$output_dir"
 build_dir="$(mktemp -d /tmp/photos-storage-build.XXXXXXXX)"
@@ -39,7 +42,7 @@ xcrun swiftc -target "$target" -swift-version 6 -warnings-as-errors \
   -o "$app/Contents/MacOS/PhotosStorage"
 xcrun clang -target "$target" -Wall -Wextra -Werror -fobjc-arc -bundle -framework Cocoa -framework PreferencePanes \
   "$source_dir/Sources/Pane/PhotosStoragePane.m" -o "$pane/Contents/MacOS/PhotosStoragePane"
-codesign "${sign_options[@]}" --identifier nl.emieljanson.FotoBudget.CacheHelper "$app/Contents/MacOS/FotoBudgetCacheHelper"
+codesign "${sign_options[@]}" "${photos_entitlements[@]}" --identifier nl.emieljanson.FotoBudget.CacheHelper "$app/Contents/MacOS/FotoBudgetCacheHelper"
 codesign "${sign_options[@]}" "$pane"
 sparkle_framework="$app/Contents/Frameworks/Sparkle.framework"
 for code in Versions/B/Autoupdate Versions/B/Updater.app Versions/B/XPCServices/Installer.xpc Versions/B/XPCServices/Downloader.xpc; do
@@ -48,7 +51,7 @@ done
 codesign "${sign_options[@]}" "$sparkle_framework"
 mkdir -p "$app/Contents/PlugIns"
 ditto "$pane" "$app/Contents/PlugIns/PhotosStorage.prefPane"
-codesign "${sign_options[@]}" "$app"
+codesign "${sign_options[@]}" "${photos_entitlements[@]}" "$app"
 codesign --verify --deep --strict "$app"
 codesign --verify --deep --strict "$pane"
 for product in "Photos Storage.app" PhotosStorage.prefPane; do

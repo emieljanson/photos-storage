@@ -19,4 +19,11 @@ for binary in [app / "Contents/MacOS/PhotosStorage", app / "Contents/MacOS/FotoB
     commands = subprocess.check_output(["xcrun", "vtool", "-show-build", binary], text=True)
     assert re.search(r"\bminos\s+13\.0\b", commands), (binary, commands)
 
+for binary in [app, app / "Contents/MacOS/FotoBudgetCacheHelper"]:
+    signed = subprocess.run(["codesign", "-d", "--entitlements", "-", "--xml", binary],
+                            check=True, capture_output=True).stdout
+    entitlements = plistlib.loads(signed[signed.index(b"<?xml"):]) if b"<?xml" in signed else {}
+    assert entitlements.get("com.apple.security.personal-information.photos-library") is True, (binary, entitlements)
+
+print("PASS Hardened-runtime app and helper carry the Photos library entitlement.")
 print("PASS Apple silicon app, helper and Settings pane have a real macOS 13.0 deployment target.")
